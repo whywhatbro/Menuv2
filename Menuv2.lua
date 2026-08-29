@@ -1,4 +1,4 @@
--- Roblox Mobile Hub - Ultimate Custom Edition v4.0 (Advanced Server Search & Friend Messenger)
+-- Roblox Mobile Hub - Web Image Edition (No Roblox AssetId Required)
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
@@ -12,54 +12,93 @@ local GuiService = game:GetService("GuiService")
 local LocalPlayer = Players.LocalPlayer
 local Camera = workspace.CurrentCamera
 
--- Cấu hình hệ thống
+---------------------------------------------------------
+-- 🎨 CẤU HÌNH HÌNH NỀN TỪ WEB (SỬA TẠI ĐÂY)
+---------------------------------------------------------
+local UIConfig = {
+    -- 1. NỀN MENU CHÍNH
+    Main_UseImage = true,
+    -- Dán trực tiếp Link Ảnh trên Web vào đây (JPG, PNG, WEBP):
+    Main_ImageUrl = "https://i.imgur.com/8Q8o5wL.png", 
+    Main_ImageTransparency = 0.2, -- Độ mờ của ảnh (0 là rõ nét hoàn toàn, 0.5 là mờ nhẹ)
+
+    -- 2. NỀN NÚT BẬT/TẮT HUB (TOGGLE BUTTON)
+    Toggle_UseImage = true,
+    -- Có thể dán Link Ảnh khác hoặc dùng chung link với Menu:
+    Toggle_ImageUrl = "https://i.imgur.com/8Q8o5wL.png", 
+    Toggle_ImageTransparency = 0.1,
+
+    -- 3. CẤU HÌNH MÀU GRADIENT (Dùng khi Main_UseImage = false)
+    Gradient_Color1 = Color3.fromRGB(15, 25, 45),
+    Gradient_Color2 = Color3.fromRGB(40, 10, 60),
+}
+
+---------------------------------------------------------
+-- 🌐 HAM TẢI VÀ LƯU ẢNH TỪ WEB SANG ROBLOX ASSET
+---------------------------------------------------------
+local function GetWebAsset(url, fileName)
+    if not url or url == "" then return "" end
+    
+    -- Kiểm tra executor có hỗ trợ tạo custom asset không
+    local getAsset = getcustomasset or getgenv().getcustomasset or getCustomAsset
+    if not getAsset or not writefile or not isfile then
+        return url -- Nếu không hỗ trợ thì trả về mặc định
+    end
+
+    local success, result = pcall(function()
+        local filePath = "MobileHub_Assets/" .. fileName
+        if not isfolder("MobileHub_Assets") then
+            makefolder("MobileHub_Assets")
+        end
+
+        -- Nếu chưa tải ảnh thì tải về lưu vào máy
+        if not isfile(filePath) then
+            local req = (syn and syn.request) or (http and http.request) or http_request or request or fluxus and fluxus.request
+            if req then
+                local res = req({Url = url, Method = "GET"})
+                if res and res.Body then
+                    writefile(filePath, res.Body)
+                end
+            else
+                writefile(filePath, game:HttpGet(url))
+            end
+        end
+
+        return getAsset(filePath)
+    end)
+
+    if success and result then
+        return result
+    end
+    return ""
+end
+
+-- Tải sẵn Asset ID từ Link Web
+local MainImageAsset = UIConfig.Main_UseImage and GetWebAsset(UIConfig.Main_ImageUrl, "main_bg.png") or ""
+local ToggleImageAsset = UIConfig.Toggle_UseImage and GetWebAsset(UIConfig.Toggle_ImageUrl, "toggle_bg.png") or ""
+
+-- Cấu hình chức năng hệ thống
 local Settings = {
     AimbotMode = "None",
     FOVRadius = 120,
-    AimWallCheck = true, -- Nếu false: Không aim xuyên tường
-    AimTargetName = "",  -- Nhập tên người chơi muốn Aim
+    AimWallCheck = true,
+    AimTargetName = "",
     
-    WalkSpeedActive = false,
-    WalkSpeedVal = 16,
+    WalkSpeedActive = false, WalkSpeedVal = 16,
+    JumpPowerActive = false, JumpPowerVal = 50,
+    InfJumpActive = false, GravityActive = false, GravityVal = 196.2,
     
-    JumpPowerActive = false,
-    JumpPowerVal = 50,
-    
-    InfJumpActive = false,
-    GravityActive = false,
-    GravityVal = 196.2,
-    
-    FullBrightActive = false,
-    UnlockCamActive = false,
-    CamNoclipActive = false,
-    XRayActive = false,
-    RemoveFogActive = false,
-    
-    ESP_Name = false,
-    ESP_Highlight = false,
-    ESP_Full = false,
+    FullBrightActive = false, UnlockCamActive = false, CamNoclipActive = false, XRayActive = false, RemoveFogActive = false,
+    ESP_Name = false, ESP_Highlight = false, ESP_Full = false,
     
     TargetPlayerName = "",
-    
-    -- Auto Click Settings
-    AC_LoopInfinite = true,
-    AC_LoopCount = 5,
-    AC_CircleSize = 40,
-    AC_Delay = 0.1,
-    AC_Running = false,
-
-    -- Waypoint Settings
-    WP_Mode = "Fly",
-    WP_FlySpeed = 50,
-    WP_Running = false
+    AC_LoopInfinite = true, AC_LoopCount = 5, AC_CircleSize = 40, AC_Delay = 0.1, AC_Running = false,
+    WP_Mode = "Fly", WP_FlySpeed = 50, WP_Running = false
 }
 
 local OriginalLighting = {
-    Ambient = Lighting.Ambient,
-    OutdoorAmbient = Lighting.OutdoorAmbient,
-    Brightness = Lighting.Brightness,
-    ClockTime = Lighting.ClockTime,
-    GlobalShadows = Lighting.GlobalShadows
+    Ambient = Lighting.Ambient, OutdoorAmbient = Lighting.OutdoorAmbient,
+    Brightness = Lighting.Brightness, ClockTime = Lighting.ClockTime, GlobalShadows = Lighting.GlobalShadows
 }
 
 local ServerStartTime = os.time()
@@ -83,20 +122,14 @@ FOVCircle.Visible = false
 ---------------------------------------------------------
 local function GetSafeParent()
     local success, parent = pcall(function()
-        if gethui then
-            return gethui()
-        elseif game:GetService("CoreGui") then
-            return game:GetService("CoreGui")
-        end
+        if gethui then return gethui()
+        elseif game:GetService("CoreGui") then return game:GetService("CoreGui") end
     end)
-    if success and parent then
-        return parent
-    end
+    if success and parent then return parent end
     return LocalPlayer:WaitForChild("PlayerGui")
 end
 
 local TargetParent = GetSafeParent()
-
 if TargetParent:FindFirstChild("UltimateMobileHub") then
     TargetParent.UltimateMobileHub:Destroy()
 end
@@ -106,7 +139,9 @@ ScreenGui.Name = "UltimateMobileHub"
 ScreenGui.ResetOnSpawn = false
 ScreenGui.Parent = TargetParent
 
--- Nút Bật/Tắt Menu Nổi
+---------------------------------------------------------
+-- 🔘 NÚT BẬT/TẮT MENU NỔI
+---------------------------------------------------------
 local ToggleMenuBtn = Instance.new("TextButton", ScreenGui)
 ToggleMenuBtn.Size = UDim2.new(0, 60, 0, 60)
 ToggleMenuBtn.Position = UDim2.new(0.02, 0, 0.15, 0)
@@ -117,15 +152,30 @@ ToggleMenuBtn.TextSize = 14
 ToggleMenuBtn.Font = Enum.Font.FredokaOne
 ToggleMenuBtn.Active = true
 ToggleMenuBtn.Draggable = true
+ToggleMenuBtn.ClipsDescendants = true
 
-local ToggleCorner = Instance.new("UICorner", ToggleMenuBtn)
-ToggleCorner.CornerRadius = UDim.new(0, 30)
+local ToggleCorner = Instance.new("UICorner", ToggleMenuBtn) ToggleCorner.CornerRadius = UDim.new(0, 30)
+local ToggleStroke = Instance.new("UIStroke", ToggleMenuBtn) ToggleStroke.Color = Color3.fromRGB(0, 255, 200) ToggleStroke.Thickness = 2
 
-local ToggleStroke = Instance.new("UIStroke", ToggleMenuBtn)
-ToggleStroke.Color = Color3.fromRGB(0, 255, 200)
-ToggleStroke.Thickness = 2
+-- Xử lý Nền Web cho Nút HUB
+if UIConfig.Toggle_UseImage and ToggleImageAsset ~= "" then
+    local ToggleBgImage = Instance.new("ImageLabel", ToggleMenuBtn)
+    ToggleBgImage.Size = UDim2.new(1, 0, 1, 0)
+    ToggleBgImage.Image = ToggleImageAsset
+    ToggleBgImage.ImageTransparency = UIConfig.Toggle_ImageTransparency
+    ToggleBgImage.BackgroundTransparency = 1
+    ToggleBgImage.ScaleType = Enum.ScaleType.Crop
+    ToggleBgImage.ZIndex = 0
+    ToggleMenuBtn.TextZIndex = 1
+else
+    local ToggleGradient = Instance.new("UIGradient", ToggleMenuBtn)
+    ToggleGradient.Color = ColorSequence.new(UIConfig.Gradient_Color1, UIConfig.Gradient_Color2)
+    ToggleGradient.Rotation = 45
+end
 
--- Khung Main Frame
+---------------------------------------------------------
+-- 📦 KHUNG MENU CHÍNH
+---------------------------------------------------------
 local MainFrame = Instance.new("Frame", ScreenGui)
 MainFrame.Size = UDim2.new(0, 520, 0, 330)
 MainFrame.Position = UDim2.new(0.5, -260, 0.5, -165)
@@ -134,12 +184,24 @@ MainFrame.Active = true
 MainFrame.Draggable = false
 MainFrame.ClipsDescendants = true
 
-local MainCorner = Instance.new("UICorner", MainFrame)
-MainCorner.CornerRadius = UDim.new(0, 10)
+local MainCorner = Instance.new("UICorner", MainFrame) MainCorner.CornerRadius = UDim.new(0, 10)
+local MainFrameStroke = Instance.new("UIStroke", MainFrame) MainFrameStroke.Color = Color3.fromRGB(0, 170, 255) MainFrameStroke.Thickness = 2
 
-local MainFrameStroke = Instance.new("UIStroke", MainFrame)
-MainFrameStroke.Color = Color3.fromRGB(0, 170, 255)
-MainFrameStroke.Thickness = 2
+-- Xử lý Nền Web cho Menu Chính
+if UIConfig.Main_UseImage and MainImageAsset ~= "" then
+    local MainBgImage = Instance.new("ImageLabel", MainFrame)
+    MainBgImage.Name = "BackgroundImage"
+    MainBgImage.Size = UDim2.new(1, 0, 1, 0)
+    MainBgImage.Image = MainImageAsset
+    MainBgImage.ImageTransparency = UIConfig.Main_ImageTransparency
+    MainBgImage.BackgroundTransparency = 1
+    MainBgImage.ScaleType = Enum.ScaleType.Crop
+    MainBgImage.ZIndex = 0
+else
+    local MainGradient = Instance.new("UIGradient", MainFrame)
+    MainGradient.Color = ColorSequence.new(UIConfig.Gradient_Color1, UIConfig.Gradient_Color2)
+    MainGradient.Rotation = 45
+end
 
 -- Hiệu ứng Đóng/Mở Menu
 local menuOpen = true
@@ -159,14 +221,15 @@ end)
 local Header = Instance.new("Frame", MainFrame)
 Header.Size = UDim2.new(1, 0, 0, 35)
 Header.BackgroundColor3 = Color3.fromRGB(10, 12, 16)
+Header.BackgroundTransparency = 0.2
+Header.ZIndex = 2
 
-local HeaderCorner = Instance.new("UICorner", Header)
-HeaderCorner.CornerRadius = UDim.new(0, 10)
+local HeaderCorner = Instance.new("UICorner", Header) HeaderCorner.CornerRadius = UDim.new(0, 10)
 
 local Title = Instance.new("TextLabel", Header)
 Title.Size = UDim2.new(1, -50, 1, 0)
 Title.Position = UDim2.new(0, 12, 0, 0)
-Title.Text = "⚡ MOBILE ADVANCED HUB v4.0 (SERVER SEARCH & CHAT)"
+Title.Text = "⚡ MOBILE ADVANCED HUB (WEB IMAGE ADAPTED)"
 Title.TextColor3 = Color3.fromRGB(255, 255, 255)
 Title.TextXAlignment = Enum.TextXAlignment.Left
 Title.Font = Enum.Font.GothamBold
@@ -193,6 +256,7 @@ local TabBar = Instance.new("Frame", MainFrame)
 TabBar.Position = UDim2.new(0, 5, 0, 40)
 TabBar.Size = UDim2.new(1, -10, 0, 32)
 TabBar.BackgroundTransparency = 1
+TabBar.ZIndex = 2
 
 local TabLayout = Instance.new("UIListLayout", TabBar)
 TabLayout.FillDirection = Enum.FillDirection.Horizontal
@@ -202,6 +266,7 @@ local ContentFrame = Instance.new("Frame", MainFrame)
 ContentFrame.Position = UDim2.new(0, 5, 0, 76)
 ContentFrame.Size = UDim2.new(1, -10, 1, -82)
 ContentFrame.BackgroundTransparency = 1
+ContentFrame.ZIndex = 2
 
 local Pages = {}
 
@@ -211,11 +276,11 @@ local function createTab(name, order)
     btn.Text = name
     btn.TextColor3 = (order == 1) and Color3.fromRGB(0, 255, 200) or Color3.fromRGB(150, 160, 175)
     btn.BackgroundColor3 = (order == 1) and Color3.fromRGB(25, 32, 45) or Color3.fromRGB(20, 24, 32)
+    btn.BackgroundTransparency = 0.2
     btn.Font = Enum.Font.GothamMedium
-    btn.TextSize = 10
+    btn.TextSize = 9
 
-    local btnCorner = Instance.new("UICorner", btn)
-    btnCorner.CornerRadius = UDim.new(0, 6)
+    local btnCorner = Instance.new("UICorner", btn) btnCorner.CornerRadius = UDim.new(0, 6)
 
     local page = Instance.new("ScrollingFrame", ContentFrame)
     page.Size = UDim2.new(1, 0, 1, 0)
@@ -254,7 +319,7 @@ local CombatPage   = createTab("COMBAT", 2)
 local MovePage     = createTab("MOVE", 3)
 local VisualPage   = createTab("ESP", 4)
 local WorldPage    = createTab("WORLD", 5)
-local PlayerPage   = createTab("PLAYER", 6)
+local ChatPage     = createTab("CHAT", 6)
 local MiscPage     = createTab("TỔNG HỢP", 7)
 
 ---------------------------------------------------------
@@ -334,9 +399,9 @@ local function addToggleWithInput(page, name, defaultVal, onToggle, onValChange)
     local frame = Instance.new("Frame", page)
     frame.Size = UDim2.new(0.99, 0, 0, 36)
     frame.BackgroundColor3 = Color3.fromRGB(22, 27, 36)
+    frame.BackgroundTransparency = 0.3
 
-    local corner = Instance.new("UICorner", frame)
-    corner.CornerRadius = UDim.new(0, 6)
+    local corner = Instance.new("UICorner", frame) corner.CornerRadius = UDim.new(0, 6)
 
     local btn = Instance.new("TextButton", frame)
     btn.Size = UDim2.new(0.55, -5, 1, -8)
@@ -347,8 +412,7 @@ local function addToggleWithInput(page, name, defaultVal, onToggle, onValChange)
     btn.Font = Enum.Font.GothamBold
     btn.TextSize = 11
 
-    local btnCorner = Instance.new("UICorner", btn)
-    btnCorner.CornerRadius = UDim.new(0, 4)
+    local btnCorner = Instance.new("UICorner", btn) btnCorner.CornerRadius = UDim.new(0, 4)
 
     local txt = Instance.new("TextBox", frame)
     txt.Position = UDim2.new(0.55, 4, 0, 4)
@@ -360,8 +424,7 @@ local function addToggleWithInput(page, name, defaultVal, onToggle, onValChange)
     txt.Font = Enum.Font.Gotham
     txt.TextSize = 11
 
-    local txtCorner = Instance.new("UICorner", txt)
-    txtCorner.CornerRadius = UDim.new(0, 4)
+    local txtCorner = Instance.new("UICorner", txt) txtCorner.CornerRadius = UDim.new(0, 4)
 
     local active = false
     btn.MouseButton1Click:Connect(function()
@@ -382,13 +445,13 @@ local function addSimpleToggle(page, name, onToggle, defaultState)
     btn.Size = UDim2.new(0.99, 0, 0, 32)
     local active = defaultState or false
     btn.BackgroundColor3 = active and Color3.fromRGB(40, 160, 90) or Color3.fromRGB(180, 50, 60)
+    btn.BackgroundTransparency = 0.2
     btn.Text = name .. (active and ": ON" or ": OFF")
     btn.TextColor3 = Color3.fromRGB(255, 255, 255)
     btn.Font = Enum.Font.GothamBold
     btn.TextSize = 11
 
-    local corner = Instance.new("UICorner", btn)
-    corner.CornerRadius = UDim.new(0, 6)
+    local corner = Instance.new("UICorner", btn) corner.CornerRadius = UDim.new(0, 6)
 
     btn.MouseButton1Click:Connect(function()
         active = not active
@@ -403,17 +466,14 @@ local function addActionButton(page, name, callback)
     local btn = Instance.new("TextButton", page)
     btn.Size = UDim2.new(0.99, 0, 0, 32)
     btn.BackgroundColor3 = Color3.fromRGB(30, 40, 55)
+    btn.BackgroundTransparency = 0.2
     btn.Text = name
     btn.TextColor3 = Color3.fromRGB(255, 255, 255)
     btn.Font = Enum.Font.GothamBold
     btn.TextSize = 11
 
-    local corner = Instance.new("UICorner", btn)
-    corner.CornerRadius = UDim.new(0, 6)
-
-    local stroke = Instance.new("UIStroke", btn)
-    stroke.Color = Color3.fromRGB(0, 170, 255)
-    stroke.Thickness = 1
+    local corner = Instance.new("UICorner", btn) corner.CornerRadius = UDim.new(0, 6)
+    local stroke = Instance.new("UIStroke", btn) stroke.Color = Color3.fromRGB(0, 170, 255) stroke.Thickness = 1
 
     btn.MouseButton1Click:Connect(callback)
     return btn
@@ -425,12 +485,12 @@ end
 local ServerAgeLabel = Instance.new("TextLabel", ServerPage)
 ServerAgeLabel.Size = UDim2.new(0.99, 0, 0, 25)
 ServerAgeLabel.BackgroundColor3 = Color3.fromRGB(22, 27, 36)
+ServerAgeLabel.BackgroundTransparency = 0.3
 ServerAgeLabel.TextColor3 = Color3.fromRGB(0, 255, 200)
 ServerAgeLabel.Font = Enum.Font.Gotham
 ServerAgeLabel.TextSize = 11
 
-local ServerAgeCorner = Instance.new("UICorner", ServerAgeLabel)
-ServerAgeCorner.CornerRadius = UDim.new(0, 6)
+local ServerAgeCorner = Instance.new("UICorner", ServerAgeLabel) ServerAgeCorner.CornerRadius = UDim.new(0, 6)
 
 task.spawn(function()
     while task.wait(1) do
@@ -443,96 +503,6 @@ task.spawn(function()
     end
 end)
 
-local PlayerListFrame = Instance.new("Frame", ServerPage)
-PlayerListFrame.Size = UDim2.new(0.99, 0, 0, 130)
-PlayerListFrame.BackgroundColor3 = Color3.fromRGB(22, 27, 36)
-
-local PLCorner = Instance.new("UICorner", PlayerListFrame)
-PLCorner.CornerRadius = UDim.new(0, 6)
-
-local PlayerScroll = Instance.new("ScrollingFrame", PlayerListFrame)
-PlayerScroll.Size = UDim2.new(1, -6, 1, -6)
-PlayerScroll.Position = UDim2.new(0, 3, 0, 3)
-PlayerScroll.BackgroundTransparency = 1
-PlayerScroll.CanvasSize = UDim2.new(0, 0, 0, 0)
-PlayerScroll.ScrollBarThickness = 3
-PlayerScroll.ScrollBarImageColor3 = Color3.fromRGB(0, 255, 200)
-
-local PLayout = Instance.new("UIListLayout", PlayerScroll)
-PLayout.Padding = UDim.new(0, 5)
-
-PLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
-    PlayerScroll.CanvasSize = UDim2.new(0, 0, 0, PLayout.AbsoluteContentSize.Y + 5)
-end)
-
-local function loadServerPlayers()
-    for _, item in pairs(PlayerScroll:GetChildren()) do
-        if not item:IsA("UIListLayout") then item:Destroy() end
-    end
-    for _, p in pairs(Players:GetPlayers()) do
-        local item = Instance.new("Frame", PlayerScroll)
-        item.Size = UDim2.new(1, 0, 0, 48)
-        item.BackgroundColor3 = Color3.fromRGB(30, 36, 48)
-
-        local itemCorner = Instance.new("UICorner", item)
-        itemCorner.CornerRadius = UDim.new(0, 6)
-
-        local avatarImg = Instance.new("ImageLabel", item)
-        avatarImg.Size = UDim2.new(0, 40, 0, 40)
-        avatarImg.Position = UDim2.new(0, 4, 0, 4)
-        avatarImg.BackgroundColor3 = Color3.fromRGB(20, 25, 35)
-
-        local avatarCorner = Instance.new("UICorner", avatarImg)
-        avatarCorner.CornerRadius = UDim.new(0, 20)
-
-        task.spawn(function()
-            pcall(function()
-                avatarImg.Image = Players:GetUserThumbnailAsync(p.UserId, Enum.ThumbnailType.HeadShot, Enum.ThumbnailSize.Size150x150)
-            end)
-        end)
-
-        local nameLbl = Instance.new("TextLabel", item)
-        nameLbl.Position = UDim2.new(0, 50, 0, 4)
-        nameLbl.Size = UDim2.new(0.48, 0, 1, -8)
-        nameLbl.Text = string.format("<b>%s</b> (@%s)\n<b><font color=\"#FFFF00\">Tuổi Acc: %d ngày</font></b>", p.DisplayName, p.Name, p.AccountAge)
-        nameLbl.TextColor3 = Color3.fromRGB(255, 255, 255)
-        nameLbl.Font = Enum.Font.Gotham
-        nameLbl.TextSize = 10
-        nameLbl.RichText = true
-        nameLbl.TextXAlignment = Enum.TextXAlignment.Left
-
-        local cReal = Instance.new("TextButton", item)
-        cReal.Position = UDim2.new(0.66, 0, 0.2, 0)
-        cReal.Size = UDim2.new(0.16, 0, 0.6, 0)
-        cReal.Text = "Copy User"
-        cReal.Font = Enum.Font.GothamBold
-        cReal.TextSize = 9
-        cReal.BackgroundColor3 = Color3.fromRGB(45, 55, 75)
-        cReal.TextColor3 = Color3.fromRGB(255, 255, 255)
-        
-        local cRealCorner = Instance.new("UICorner", cReal)
-        cRealCorner.CornerRadius = UDim.new(0, 4)
-        cReal.MouseButton1Click:Connect(function() setclipboard(p.Name) end)
-
-        local cDisplay = Instance.new("TextButton", item)
-        cDisplay.Position = UDim2.new(0.83, 0, 0.2, 0)
-        cDisplay.Size = UDim2.new(0.16, 0, 0.6, 0)
-        cDisplay.Text = "Copy Display"
-        cDisplay.Font = Enum.Font.GothamBold
-        cDisplay.TextSize = 9
-        cDisplay.BackgroundColor3 = Color3.fromRGB(45, 55, 75)
-        cDisplay.TextColor3 = Color3.fromRGB(255, 255, 255)
-
-        local cDispCorner = Instance.new("UICorner", cDisplay)
-        cDispCorner.CornerRadius = UDim.new(0, 4)
-        cDisplay.MouseButton1Click:Connect(function() setclipboard(p.DisplayName) end)
-    end
-end
-loadServerPlayers()
-
-addActionButton(ServerPage, "🔄 Làm mới danh sách Player trong Server", loadServerPlayers)
-
------------------- HỆ THỐNG ĐỔI SERVER ------------------
 local ServerHopFrame = Instance.new("Frame", ServerPage)
 ServerHopFrame.Size = UDim2.new(0.99, 0, 0, 40)
 ServerHopFrame.BackgroundTransparency = 1
@@ -545,6 +515,7 @@ local RejoinBtn = Instance.new("TextButton", ServerHopFrame)
 RejoinBtn.Size = UDim2.new(0.32, 0, 1, 0)
 RejoinBtn.Text = "Vào Lại Server"
 RejoinBtn.BackgroundColor3 = Color3.fromRGB(30, 40, 55)
+RejoinBtn.BackgroundTransparency = 0.2
 RejoinBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
 RejoinBtn.Font = Enum.Font.GothamBold
 RejoinBtn.TextSize = 9
@@ -561,6 +532,7 @@ local ServerHopBtn = Instance.new("TextButton", ServerHopFrame)
 ServerHopBtn.Size = UDim2.new(0.32, 0, 1, 0)
 ServerHopBtn.Text = "Vào Server Khác"
 ServerHopBtn.BackgroundColor3 = Color3.fromRGB(30, 40, 55)
+ServerHopBtn.BackgroundTransparency = 0.2
 ServerHopBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
 ServerHopBtn.Font = Enum.Font.GothamBold
 ServerHopBtn.TextSize = 9
@@ -571,10 +543,7 @@ local function SafeHttpRequest(url, method, headers, body)
     local requestFunc = (syn and syn.request) or (http and http.request) or http_request or request
     if requestFunc then
         return requestFunc({
-            Url = url,
-            Method = method or "GET",
-            Headers = headers or {},
-            Body = body or nil
+            Url = url, Method = method or "GET", Headers = headers or {}, Body = body or nil
         })
     else
         local res = game:HttpGet(url)
@@ -589,14 +558,10 @@ local function FetchServerListMulti()
     }
 
     for _, url in ipairs(endpoints) do
-        local success, res = pcall(function()
-            return SafeHttpRequest(url)
-        end)
+        local success, res = pcall(function() return SafeHttpRequest(url) end)
         if success and res and res.Body then
             local jsonSuccess, data = pcall(function() return HttpService:JSONDecode(res.Body) end)
-            if jsonSuccess and data and data.data and #data.data > 0 then
-                return data.data
-            end
+            if jsonSuccess and data and data.data and #data.data > 0 then return data.data end
         end
     end
     return nil
@@ -608,13 +573,10 @@ local function HopRandomServer()
         if servers then
             local validServers = {}
             for _, s in ipairs(servers) do
-                if s.id ~= game.JobId and s.playing < s.maxPlayers then
-                    table.insert(validServers, s.id)
-                end
+                if s.id ~= game.JobId and s.playing < s.maxPlayers then table.insert(validServers, s.id) end
             end
             if #validServers > 0 then
-                local targetJob = validServers[math.random(1, #validServers)]
-                TeleportService:TeleportToPlaceInstance(game.PlaceId, targetJob, LocalPlayer)
+                TeleportService:TeleportToPlaceInstance(game.PlaceId, validServers[math.random(1, #validServers)], LocalPlayer)
                 return
             end
         end
@@ -623,15 +585,14 @@ local function HopRandomServer()
 end
 
 ServerHopBtn.MouseButton1Click:Connect(function()
-    ShowConfirmDialog("Bạn có chắc muốn nhảy sang Server ngẫu nhiên khác?", function()
-        HopRandomServer()
-    end)
+    ShowConfirmDialog("Bạn có chắc muốn nhảy sang Server ngẫu nhiên khác?", function() HopRandomServer() end)
 end)
 
 local SmallServerBtn = Instance.new("TextButton", ServerHopFrame)
 SmallServerBtn.Size = UDim2.new(0.32, 0, 1, 0)
 SmallServerBtn.Text = "Vào Server Ít Người"
 SmallServerBtn.BackgroundColor3 = Color3.fromRGB(30, 40, 55)
+SmallServerBtn.BackgroundTransparency = 0.2
 SmallServerBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
 SmallServerBtn.Font = Enum.Font.GothamBold
 SmallServerBtn.TextSize = 9
@@ -660,26 +621,25 @@ local function HopSmallestServer()
 end
 
 SmallServerBtn.MouseButton1Click:Connect(function()
-    ShowConfirmDialog("Chuyển sang Server có ít người nhất?", function()
-        HopSmallestServer()
-    end)
+    ShowConfirmDialog("Chuyển sang Server có ít người nhất?", function() HopSmallestServer() end)
 end)
 
 ------------------ KHUNG TÌM KIẾM NGƯỜI CHƠI ------------------
 local TargetUserContainer = Instance.new("Frame", ServerPage)
 TargetUserContainer.Size = UDim2.new(0.99, 0, 0, 360)
 TargetUserContainer.BackgroundColor3 = Color3.fromRGB(22, 27, 36)
+TargetUserContainer.BackgroundTransparency = 0.3
 
 local TUCorner = Instance.new("UICorner", TargetUserContainer) TUCorner.CornerRadius = UDim.new(0, 6)
 
 local TUHeader = Instance.new("TextLabel", TargetUserContainer)
 TUHeader.Size = UDim2.new(1, -10, 0, 20)
 TUHeader.Position = UDim2.new(0, 5, 0, 2)
-TUHeader.Text = "👤 TÌM KIẾM BẠN BÈ & SERVER CÓ THỂ THAM GIA"
+TUHeader.Text = "👤 TÌM KIẾM NGƯỜI CHƠI (VIẾT TẮT / TÊN THẬT / TÊN HIỂN THỊ)"
 TUHeader.TextColor3 = Color3.fromRGB(0, 255, 200)
 TUHeader.TextXAlignment = Enum.TextXAlignment.Left
 TUHeader.Font = Enum.Font.GothamBold
-TUHeader.TextSize = 10
+TUHeader.TextSize = 9
 TUHeader.BackgroundTransparency = 1
 
 local UserInputFrame = Instance.new("Frame", TargetUserContainer)
@@ -689,7 +649,7 @@ UserInputFrame.BackgroundTransparency = 1
 
 local TargetUserBox = Instance.new("TextBox", UserInputFrame)
 TargetUserBox.Size = UDim2.new(0.75, 0, 1, 0)
-TargetUserBox.PlaceholderText = "Nhập từ khóa Username hoặc Display Name..."
+TargetUserBox.PlaceholderText = "Nhập từ khóa hoặc chữ cái đầu..."
 TargetUserBox.BackgroundColor3 = Color3.fromRGB(30, 36, 48)
 TargetUserBox.TextColor3 = Color3.fromRGB(255, 255, 255)
 TargetUserBox.Font = Enum.Font.Gotham
@@ -709,158 +669,24 @@ local SUBStyle = Instance.new("UICorner", SearchUserBtn) SUBStyle.CornerRadius =
 local UserStatusLabel = Instance.new("TextLabel", TargetUserContainer)
 UserStatusLabel.Position = UDim2.new(0.02, 0, 0.14, 0)
 UserStatusLabel.Size = UDim2.new(0.96, 0, 0, 14)
-UserStatusLabel.Text = "Nhập thông tin từ khóa để tìm kiếm người chơi..."
+UserStatusLabel.Text = "Nhập từ khóa để tìm chính xác người chơi..."
 UserStatusLabel.TextColor3 = Color3.fromRGB(255, 215, 0)
 UserStatusLabel.Font = Enum.Font.Gotham
 UserStatusLabel.TextSize = 9
 UserStatusLabel.BackgroundTransparency = 1
 
-local SearchResultsFrame = Instance.new("Frame", TargetUserContainer)
+local SearchResultsFrame = Instance.new("ScrollingFrame", TargetUserContainer)
 SearchResultsFrame.Position = UDim2.new(0.02, 0, 0.19, 0)
 SearchResultsFrame.Size = UDim2.new(0.96, 0, 0, 275)
 SearchResultsFrame.BackgroundTransparency = 1
+SearchResultsFrame.CanvasSize = UDim2.new(0, 0, 0, 0)
+SearchResultsFrame.ScrollBarThickness = 3
 
 local SRLayout = Instance.new("UIListLayout", SearchResultsFrame)
 SRLayout.Padding = UDim.new(0, 5)
-
-local PaginationFrame = Instance.new("Frame", TargetUserContainer)
-PaginationFrame.Position = UDim2.new(0.02, 0, 0.93, 0)
-PaginationFrame.Size = UDim2.new(0.96, 0, 0, 20)
-PaginationFrame.BackgroundTransparency = 1
-
-local PagLayout = Instance.new("UIListLayout", PaginationFrame)
-PagLayout.FillDirection = Enum.FillDirection.Horizontal
-PagLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
-PagLayout.Padding = UDim.new(0, 4)
-
-local currentSearchResults = {}
-local currentSearchPage = 1
-local itemsPerPage = 4
-
-local function renderSearchPage(page)
-    currentSearchPage = page
-    for _, child in pairs(SearchResultsFrame:GetChildren()) do
-        if not child:IsA("UIListLayout") then child:Destroy() end
-    end
-    for _, child in pairs(PaginationFrame:GetChildren()) do
-        if not child:IsA("UIListLayout") then child:Destroy() end
-    end
-
-    local totalItems = #currentSearchResults
-    if totalItems == 0 then
-        UserStatusLabel.Text = "❌ Không tìm thấy người chơi phù hợp!"
-        return
-    end
-
-    local totalPages = math.ceil(totalItems / itemsPerPage)
-    local startIdx = (page - 1) * itemsPerPage + 1
-    local endIdx = math.min(startIdx + itemsPerPage - 1, totalItems)
-
-    UserStatusLabel.Text = string.format("Tìm thấy %d kết quả (Trang %d/%d)", totalItems, page, totalPages)
-
-    for i = startIdx, endIdx do
-        local uData = currentSearchResults[i]
-        
-        local itemFrame = Instance.new("Frame", SearchResultsFrame)
-        itemFrame.Size = UDim2.new(1, 0, 0, 65)
-        itemFrame.BackgroundColor3 = Color3.fromRGB(30, 36, 48)
-        local IFC = Instance.new("UICorner", itemFrame) IFC.CornerRadius = UDim.new(0, 6)
-
-        local searchAvatarImg = Instance.new("ImageLabel", itemFrame)
-        searchAvatarImg.Size = UDim2.new(0, 50, 0, 50)
-        searchAvatarImg.Position = UDim2.new(0, 6, 0.5, -25)
-        searchAvatarImg.BackgroundColor3 = Color3.fromRGB(20, 25, 35)
-        local SAFCorner = Instance.new("UICorner", searchAvatarImg) SAFCorner.CornerRadius = UDim.new(1, 0)
-
-        task.spawn(function()
-            pcall(function()
-                searchAvatarImg.Image = Players:GetUserThumbnailAsync(uData.userId, Enum.ThumbnailType.HeadShot, Enum.ThumbnailSize.Size150x150)
-            end)
-        end)
-
-        local statusText = ""
-        local canJoin = false
-        if uData.isCurrentServer then
-            statusText = "<font color=\"#00FF88\"><b>🟢 Cùng Server Hiện Tại</b></font>"
-            canJoin = true
-        elseif uData.presenceType == 2 and uData.placeId then
-            local gameName = uData.gameTitle or "Game Khác"
-            statusText = string.format("<font color=\"#00E5FF\">🎮 <b>Đang chơi:</b> %s</font>\n<font color=\"#00FF88\">✔️ Có thể tham gia Server</font>", gameName)
-            canJoin = true
-        elseif uData.presenceType == 1 then
-            statusText = "<font color=\"#FFD700\"><b>🟡 Online (Website / App)</b></font>"
-        elseif uData.presenceType == 3 then
-            statusText = "<font color=\"#FF9900\"><b>🛠️ Trong Roblox Studio</b></font>"
-        else
-            statusText = "<font color=\"#AAAAAA\"><b>🔴 Offline</b></font>"
-        end
-
-        local uInfoLabel = Instance.new("TextLabel", itemFrame)
-        uInfoLabel.Position = UDim2.new(0, 62, 0, 4)
-        uInfoLabel.Size = UDim2.new(0.58, 0, 1, -8)
-        uInfoLabel.Text = string.format("<b>%s</b> (@%s)\n%s", uData.displayName, uData.username, statusText)
-        uInfoLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
-        uInfoLabel.RichText = true
-        uInfoLabel.Font = Enum.Font.Gotham
-        uInfoLabel.TextSize = 9
-        uInfoLabel.TextXAlignment = Enum.TextXAlignment.Left
-
-        local actionBtn = Instance.new("TextButton", itemFrame)
-        actionBtn.Position = UDim2.new(0.74, 0, 0.2, 0)
-        actionBtn.Size = UDim2.new(0.24, 0, 0.6, 0)
-        actionBtn.Font = Enum.Font.GothamBold
-        actionBtn.TextSize = 9
-
-        if uData.isCurrentServer then
-            actionBtn.Text = "Teleport"
-            actionBtn.BackgroundColor3 = Color3.fromRGB(16, 185, 129)
-            actionBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
-        elseif canJoin then
-            actionBtn.Text = "Vào Server"
-            actionBtn.BackgroundColor3 = Color3.fromRGB(2, 132, 199)
-            actionBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
-        else
-            actionBtn.Text = "Không Thể Join"
-            actionBtn.BackgroundColor3 = Color3.fromRGB(60, 65, 75)
-            actionBtn.TextColor3 = Color3.fromRGB(150, 150, 150)
-        end
-        local ABC = Instance.new("UICorner", actionBtn) ABC.CornerRadius = UDim.new(0, 4)
-
-        actionBtn.MouseButton1Click:Connect(function()
-            if uData.isCurrentServer then
-                local targetP = Players:FindFirstChild(uData.username)
-                if targetP and targetP.Character and targetP.Character:FindFirstChild("HumanoidRootPart") then
-                    LocalPlayer.Character.HumanoidRootPart.CFrame = targetP.Character.HumanoidRootPart.CFrame
-                end
-            elseif canJoin and uData.placeId then
-                ShowConfirmDialog(string.format("Chuyển Server để theo %s?", uData.displayName), function()
-                    if uData.gameId and uData.gameId ~= "" then
-                        TeleportService:TeleportToPlaceInstance(uData.placeId, uData.gameId, LocalPlayer)
-                    else
-                        TeleportService:Teleport(uData.placeId, LocalPlayer)
-                    end
-                end)
-            end
-        end)
-    end
-
-    if totalPages > 1 then
-        for p = 1, totalPages do
-            local pBtn = Instance.new("TextButton", PaginationFrame)
-            pBtn.Size = UDim2.new(0, 20, 0, 20)
-            pBtn.Text = tostring(p)
-            pBtn.Font = Enum.Font.GothamBold
-            pBtn.TextSize = 9
-            pBtn.BackgroundColor3 = (p == page) and Color3.fromRGB(0, 170, 255) or Color3.fromRGB(30, 36, 48)
-            pBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
-            local PBC = Instance.new("UICorner", pBtn) PBC.CornerRadius = UDim.new(0, 3)
-
-            pBtn.MouseButton1Click:Connect(function()
-                renderSearchPage(p)
-            end)
-        end
-    end
-end
+SRLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
+    SearchResultsFrame.CanvasSize = UDim2.new(0, 0, 0, SRLayout.AbsoluteContentSize.Y + 5)
+end)
 
 local function ExecuteUserSearch()
     local query = TargetUserBox.Text:match("^%s*(.-)%s*$")
@@ -869,111 +695,97 @@ local function ExecuteUserSearch()
         return
     end
 
-    UserStatusLabel.Text = "⏳ Đang quét danh sách người chơi và Server có thể Join..."
-    currentSearchResults = {}
+    for _, child in pairs(SearchResultsFrame:GetChildren()) do
+        if not child:IsA("UIListLayout") then child:Destroy() end
+    end
+
+    UserStatusLabel.Text = "⏳ Đang lọc kết quả..."
 
     task.spawn(function()
         local foundUsers = {}
-        local userIds = {}
         local queryLower = query:lower()
 
         for _, p in pairs(Players:GetPlayers()) do
-            if p.Name:lower():find(queryLower, 1, true) or p.DisplayName:lower():find(queryLower, 1, true) then
+            local username = p.Name:lower()
+            local displayName = p.DisplayName:lower()
+            
+            local matchFound = false
+            if username:sub(1, #queryLower) == queryLower or displayName:sub(1, #queryLower) == queryLower then
+                matchFound = true
+            elseif username:find(queryLower, 1, true) or displayName:find(queryLower, 1, true) then
+                matchFound = true
+            end
+
+            if matchFound then
                 table.insert(foundUsers, {
-                    userId = p.UserId,
-                    username = p.Name,
-                    displayName = p.DisplayName,
-                    isCurrentServer = true,
-                    presenceType = 2,
-                    placeId = game.PlaceId,
-                    gameId = game.JobId,
-                    gameTitle = "Server Hiện Tại"
+                    userId = p.UserId, username = p.Name, displayName = p.DisplayName, isCurrentServer = true
                 })
             end
         end
 
-        pcall(function()
-            local searchUrl = "https://users.roproxy.com/v1/users/search?keyword=" .. HttpService:UrlEncode(query) .. "&limit=25"
-            local res = SafeHttpRequest(searchUrl)
-            if res and res.Body then
-                local data = HttpService:JSONDecode(res.Body)
-                if data and data.data then
-                    for _, u in ipairs(data.data) do
-                        local exists = false
-                        for _, existing in ipairs(foundUsers) do
-                            if existing.userId == u.id then exists = true break end
-                        end
-                        if not exists then
-                            table.insert(foundUsers, {
-                                userId = u.id,
-                                username = u.name,
-                                displayName = u.displayName,
-                                isCurrentServer = false,
-                                presenceType = 0,
-                                placeId = nil,
-                                gameId = nil,
-                                gameTitle = nil
-                            })
-                        end
-                    end
-                end
-            end
-        end)
-
-        for _, u in ipairs(foundUsers) do
-            if not u.isCurrentServer then
-                table.insert(userIds, u.userId)
-            end
+        if #foundUsers == 0 then
+            UserStatusLabel.Text = "❌ Không tìm thấy người chơi phù hợp!"
+            return
         end
 
-        if #userIds > 0 then
-            pcall(function()
-                local presUrl = "https://presence.roproxy.com/v1/presence/users"
-                local bodyData = HttpService:JSONEncode({userIds = userIds})
-                local res = SafeHttpRequest(presUrl, "POST", {["Content-Type"] = "application/json"}, bodyData)
-                
-                if res and res.Body then
-                    local pData = HttpService:JSONDecode(res.Body)
-                    if pData and pData.userPresences then
-                        for _, pInfo in ipairs(pData.userPresences) do
-                            for _, uObj in ipairs(foundUsers) do
-                                if uObj.userId == pInfo.userId then
-                                    uObj.presenceType = pInfo.userPresenceType
-                                    uObj.placeId = pInfo.placeId
-                                    uObj.gameId = pInfo.gameId
-                                    
-                                    if pInfo.placeId and pInfo.universeId then
-                                        pcall(function()
-                                            local uniUrl = "https://games.roproxy.com/v1/games?universeIds=" .. tostring(pInfo.universeId)
-                                            local uniRes = SafeHttpRequest(uniUrl)
-                                            if uniRes and uniRes.Body then
-                                                local uniData = HttpService:JSONDecode(uniRes.Body)
-                                                if uniData and uniData.data and uniData.data[1] then
-                                                    uObj.gameTitle = uniData.data[1].name
-                                                end
-                                            end
-                                        end)
-                                    end
-                                end
-                            end
-                        end
-                    end
+        UserStatusLabel.Text = string.format("✅ Tìm thấy %d kết quả!", #foundUsers)
+
+        for _, uData in ipairs(foundUsers) do
+            local itemFrame = Instance.new("Frame", SearchResultsFrame)
+            itemFrame.Size = UDim2.new(1, 0, 0, 60)
+            itemFrame.BackgroundColor3 = Color3.fromRGB(30, 36, 48)
+            itemFrame.BackgroundTransparency = 0.2
+            local IFC = Instance.new("UICorner", itemFrame) IFC.CornerRadius = UDim.new(0, 6)
+
+            local searchAvatarImg = Instance.new("ImageLabel", itemFrame)
+            searchAvatarImg.Size = UDim2.new(0, 45, 0, 45)
+            searchAvatarImg.Position = UDim2.new(0, 6, 0.5, -22)
+            searchAvatarImg.BackgroundColor3 = Color3.fromRGB(20, 25, 35)
+            local SAFCorner = Instance.new("UICorner", searchAvatarImg) SAFCorner.CornerRadius = UDim.new(1, 0)
+
+            task.spawn(function()
+                pcall(function()
+                    searchAvatarImg.Image = Players:GetUserThumbnailAsync(uData.userId, Enum.ThumbnailType.HeadShot, Enum.ThumbnailSize.Size150x150)
+                end)
+            end)
+
+            local statusText = "<font color=\"#00FF88\"><b>🟢 Đang ở Server Này</b></font>"
+
+            local uInfoLabel = Instance.new("TextLabel", itemFrame)
+            uInfoLabel.Position = UDim2.new(0, 58, 0, 4)
+            uInfoLabel.Size = UDim2.new(0.60, 0, 1, -8)
+            uInfoLabel.Text = string.format("<b>%s</b> (@%s)\n%s", uData.displayName, uData.username, statusText)
+            uInfoLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+            uInfoLabel.RichText = true
+            uInfoLabel.Font = Enum.Font.Gotham
+            uInfoLabel.TextSize = 9
+            uInfoLabel.TextXAlignment = Enum.TextXAlignment.Left
+
+            local actionBtn = Instance.new("TextButton", itemFrame)
+            actionBtn.Position = UDim2.new(0.72, 0, 0.2, 0)
+            actionBtn.Size = UDim2.new(0.26, 0, 0.6, 0)
+            actionBtn.Font = Enum.Font.GothamBold
+            actionBtn.TextSize = 9
+            actionBtn.Text = "Teleport"
+            actionBtn.BackgroundColor3 = Color3.fromRGB(16, 185, 129)
+            actionBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+            local ABC = Instance.new("UICorner", actionBtn) ABC.CornerRadius = UDim.new(0, 4)
+
+            actionBtn.MouseButton1Click:Connect(function()
+                local targetP = Players:FindFirstChild(uData.username)
+                if targetP and targetP.Character and targetP.Character:FindFirstChild("HumanoidRootPart") then
+                    LocalPlayer.Character.HumanoidRootPart.CFrame = targetP.Character.HumanoidRootPart.CFrame
                 end
             end)
         end
-
-        currentSearchResults = foundUsers
-        renderSearchPage(1)
     end)
 end
 
 SearchUserBtn.MouseButton1Click:Connect(ExecuteUserSearch)
-TargetUserBox.FocusLost:Connect(function(enterPressed)
-    if enterPressed then ExecuteUserSearch() end
-end)
+TargetUserBox.FocusLost:Connect(function(enterPressed) if enterPressed then ExecuteUserSearch() end end)
 
 ---------------------------------------------------------
--- 2. TAB COMBAT (ĐÃ BỔ SUNG TÍNH NĂNG TÌM THEO TÊN & WALLCHECK)
+-- 2. TAB COMBAT
 ---------------------------------------------------------
 addSimpleToggle(CombatPage, "Aim Người Gần Nhất", function(val) Settings.AimbotMode = val and "Closest" or "None" end)
 addSimpleToggle(CombatPage, "Aim Ít Máu Nhất", function(val) Settings.AimbotMode = val and "LowestHealth" or "None" end)
@@ -991,29 +803,16 @@ FOVInput.BackgroundColor3 = Color3.fromRGB(22, 27, 36)
 FOVInput.TextColor3 = Color3.fromRGB(0, 255, 200)
 FOVInput.Font = Enum.Font.Gotham
 FOVInput.TextSize = 11
-
-local FOVCorner = Instance.new("UICorner", FOVInput)
-FOVCorner.CornerRadius = UDim.new(0, 6)
+local FOVCorner = Instance.new("UICorner", FOVInput) FOVCorner.CornerRadius = UDim.new(0, 6)
 
 FOVInput.FocusLost:Connect(function()
     local val = tonumber(FOVInput.Text)
-    if val then
-        Settings.FOVRadius = val
-        FOVCircle.Radius = val
-    end
+    if val then Settings.FOVRadius = val FOVCircle.Radius = val end
 end)
 
--- Nút Bật/Tắt Aim Xuyên Tường
-addSimpleToggle(CombatPage, "Aim Xuyên Tường (Wall Check)", function(val)
-    Settings.AimWallCheck = val
-end, true)
+addSimpleToggle(CombatPage, "Aim Xuyên Tường (Wall Check)", function(val) Settings.AimWallCheck = val end, true)
+addSimpleToggle(CombatPage, "Aim Theo Tên (Target Name)", function(val) Settings.AimbotMode = val and "TargetName" or "None" end)
 
--- Nút Bật/Tắt Aim Theo Tên Người Chơi
-addSimpleToggle(CombatPage, "Aim Theo Tên (Target Name)", function(val)
-    Settings.AimbotMode = val and "TargetName" or "None"
-end)
-
--- Ô nhập tên Target
 local AimTargetInput = Instance.new("TextBox", CombatPage)
 AimTargetInput.Size = UDim2.new(0.99, 0, 0, 32)
 AimTargetInput.Text = Settings.AimTargetName
@@ -1022,16 +821,12 @@ AimTargetInput.BackgroundColor3 = Color3.fromRGB(22, 27, 36)
 AimTargetInput.TextColor3 = Color3.fromRGB(0, 255, 200)
 AimTargetInput.Font = Enum.Font.Gotham
 AimTargetInput.TextSize = 11
+local AimTargetCorner = Instance.new("UICorner", AimTargetInput) AimTargetCorner.CornerRadius = UDim.new(0, 6)
 
-local AimTargetCorner = Instance.new("UICorner", AimTargetInput)
-AimTargetCorner.CornerRadius = UDim.new(0, 6)
-
-AimTargetInput.FocusLost:Connect(function()
-    Settings.AimTargetName = AimTargetInput.Text:lower()
-end)
+AimTargetInput.FocusLost:Connect(function() Settings.AimTargetName = AimTargetInput.Text:lower() end)
 
 ---------------------------------------------------------
--- 3. TAB MOVEMENT & SCRIPT SHIFT LOCK
+-- 3. TAB MOVEMENT
 ---------------------------------------------------------
 addToggleWithInput(MovePage, "Chạy Nhanh", Settings.WalkSpeedVal, function(state) Settings.WalkSpeedActive = state end, function(val) Settings.WalkSpeedVal = val end)
 addToggleWithInput(MovePage, "Nhảy Cao", Settings.JumpPowerVal, function(state) Settings.JumpPowerActive = state end, function(val) Settings.JumpPowerVal = val end)
@@ -1039,15 +834,11 @@ addToggleWithInput(MovePage, "Trọng Lực (Gravity)", Settings.GravityVal, fun
 addSimpleToggle(MovePage, "Nhảy Vô Hạn", function(state) Settings.InfJumpActive = state end)
 
 addActionButton(MovePage, "Bật Script Bay (FlyGui V3)", function()
-    pcall(function()
-        loadstring(game:HttpGet("https://raw.githubusercontent.com/XNEOFF/FlyGuiV3/main/FlyGuiV3.txt"))()
-    end)
+    pcall(function() loadstring(game:HttpGet("https://raw.githubusercontent.com/XNEOFF/FlyGuiV3/main/FlyGuiV3.txt"))() end)
 end)
 
 addActionButton(MovePage, "🔒 Bật Script Shift Lock (Universal)", function()
-    pcall(function()
-        loadstring(game:HttpGet("https://rawscripts.net/raw/Universal-Script-Shift-Lock-121871"))()
-    end)
+    pcall(function() loadstring(game:HttpGet("https://rawscripts.net/raw/Universal-Script-Shift-Lock-121871"))() end)
 end)
 
 ---------------------------------------------------------
@@ -1077,11 +868,7 @@ local function ApplyXRay(active)
     end
 end
 
-addSimpleToggle(VisualPage, "X-Ray (Nhìn Xuyên Tường)", function(val)
-    Settings.XRayActive = val
-    ApplyXRay(val)
-end)
-
+addSimpleToggle(VisualPage, "X-Ray (Nhìn Xuyên Tường)", function(val) Settings.XRayActive = val ApplyXRay(val) end)
 addSimpleToggle(VisualPage, "Full Bright (Màn Hình Sáng Vô Hạn)", function(val)
     Settings.FullBrightActive = val
     if not val then
@@ -1094,11 +881,7 @@ end)
 
 addSimpleToggle(VisualPage, "Noclip Camera (Nhìn Qua Tường)", function(val)
     Settings.CamNoclipActive = val
-    if val then
-        LocalPlayer.DevCameraOcclusionMode = Enum.DevCameraOcclusionMode.Invisicam
-    else
-        LocalPlayer.DevCameraOcclusionMode = Enum.DevCameraOcclusionMode.Zoom
-    end
+    LocalPlayer.DevCameraOcclusionMode = val and Enum.DevCameraOcclusionMode.Invisicam or Enum.DevCameraOcclusionMode.Zoom
 end)
 
 addSimpleToggle(VisualPage, "Mở Khoá Góc Nhìn Camera", function(val)
@@ -1113,115 +896,59 @@ addSimpleToggle(WorldPage, "Xóa Sương Mù (Remove Fog)", function(val)
     Settings.RemoveFogActive = val
     if val then
         Lighting.FogEnd = 9e9
-        for _, v in pairs(Lighting:GetChildren()) do
-            if v:IsA("Atmosphere") then v:Destroy() end
-        end
+        for _, v in pairs(Lighting:GetChildren()) do if v:IsA("Atmosphere") then v:Destroy() end end
     else
         Lighting.FogEnd = 1000
     end
 end)
 
-local function optimizeGame()
-    for _, v in pairs(workspace:GetDescendants()) do
-        if v:IsA("BasePart") then
-            v.Material = Enum.Material.SmoothPlastic
-            v.Reflectance = 0
-        elseif v:IsA("Decal") or v:IsA("Texture") then
-            v:Destroy()
-        elseif v:IsA("ParticleEmitter") or v:IsA("Trail") then
-            v.Enabled = false
-        end
-    end
-end
-
 addActionButton(WorldPage, "Giảm Lag (FPS Boost - Smooth Textures)", function()
-    optimizeGame()
+    for _, v in pairs(workspace:GetDescendants()) do
+        if v:IsA("BasePart") then v.Material = Enum.Material.SmoothPlastic v.Reflectance = 0
+        elseif v:IsA("Decal") or v:IsA("Texture") then v:Destroy()
+        elseif v:IsA("ParticleEmitter") or v:IsA("Trail") then v.Enabled = false end
+    end
 end)
 
 ---------------------------------------------------------
--- 6. TAB PLAYER
+-- 6. TAB CHAT
 ---------------------------------------------------------
-local TargetProfileFrame = Instance.new("Frame", PlayerPage)
-TargetProfileFrame.Size = UDim2.new(0.99, 0, 0, 75)
-TargetProfileFrame.BackgroundColor3 = Color3.fromRGB(22, 27, 36)
+local ChatTargetBox = Instance.new("TextBox", ChatPage)
+ChatTargetBox.Size = UDim2.new(0.99, 0, 0, 32)
+ChatTargetBox.PlaceholderText = "Nhập tên bạn bè cần chat riêng..."
+ChatTargetBox.BackgroundColor3 = Color3.fromRGB(22, 27, 36)
+ChatTargetBox.TextColor3 = Color3.fromRGB(255, 255, 255)
+ChatTargetBox.Font = Enum.Font.Gotham
+ChatTargetBox.TextSize = 11
+local CTC = Instance.new("UICorner", ChatTargetBox) CTC.CornerRadius = UDim.new(0, 6)
 
-local TPCorner = Instance.new("UICorner", TargetProfileFrame)
-TPCorner.CornerRadius = UDim.new(0, 6)
+local ChatMsgBox = Instance.new("TextBox", ChatPage)
+ChatMsgBox.Size = UDim2.new(0.99, 0, 0, 32)
+ChatMsgBox.PlaceholderText = "Nhập nội dung tin nhắn..."
+ChatMsgBox.BackgroundColor3 = Color3.fromRGB(22, 27, 36)
+ChatMsgBox.TextColor3 = Color3.fromRGB(255, 255, 255)
+ChatMsgBox.Font = Enum.Font.Gotham
+ChatMsgBox.TextSize = 11
+local CMBC = Instance.new("UICorner", ChatMsgBox) CMBC.CornerRadius = UDim.new(0, 6)
 
-local AvatarImg = Instance.new("ImageLabel", TargetProfileFrame)
-AvatarImg.Size = UDim2.new(0, 65, 0, 65)
-AvatarImg.Position = UDim2.new(0, 5, 0, 5)
+addActionButton(ChatPage, "Gửi Tin Nhắn Riêng", function()
+    local targetName = ChatTargetBox.Text:lower()
+    local msg = ChatMsgBox.Text
+    if targetName == "" or msg == "" then return end
 
-local AvatarCorner = Instance.new("UICorner", AvatarImg)
-AvatarCorner.CornerRadius = UDim.new(0, 6)
-
-local InfoLabel = Instance.new("TextLabel", TargetProfileFrame)
-InfoLabel.Position = UDim2.new(0, 78, 0, 5)
-InfoLabel.Size = UDim2.new(0.7, 0, 0.9, 0)
-InfoLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
-InfoLabel.TextXAlignment = Enum.TextXAlignment.Left
-InfoLabel.TextYAlignment = Enum.TextYAlignment.Top
-InfoLabel.Font = Enum.Font.Gotham
-InfoLabel.TextSize = 11
-InfoLabel.Text = "Nhập tên người chơi trong Server..."
-
-local SearchBox = Instance.new("TextBox", PlayerPage)
-SearchBox.Size = UDim2.new(0.99, 0, 0, 30)
-SearchBox.PlaceholderText = "Nhập tên người chơi trong Server..."
-SearchBox.BackgroundColor3 = Color3.fromRGB(22, 27, 36)
-SearchBox.TextColor3 = Color3.fromRGB(0, 255, 200)
-SearchBox.Font = Enum.Font.Gotham
-SearchBox.TextSize = 11
-
-local SBCorner = Instance.new("UICorner", SearchBox)
-SBCorner.CornerRadius = UDim.new(0, 6)
-
-local targetSelectedPlayer = nil
-
-SearchBox.FocusLost:Connect(function()
-    local text = SearchBox.Text:lower()
-    targetSelectedPlayer = nil
     for _, p in pairs(Players:GetPlayers()) do
-        if p.Name:lower():find(text, 1, true) or p.DisplayName:lower():find(text, 1, true) then
-            targetSelectedPlayer = p
+        if p.Name:lower():find(targetName) or p.DisplayName:lower():find(targetName) then
+            pcall(function()
+                game:GetService("ReplicatedStorage").DefaultChatSystemChatEvents.SayMessageRequest:FireServer("/w " .. p.Name .. " " .. msg, "All")
+            end)
+            ChatMsgBox.Text = ""
             break
         end
     end
-    
-    if targetSelectedPlayer then
-        pcall(function()
-            AvatarImg.Image = Players:GetUserThumbnailAsync(targetSelectedPlayer.UserId, Enum.ThumbnailType.HeadShot, Enum.ThumbnailSize.Size420x420)
-        end)
-        InfoLabel.Text = string.format("Tên: %s\n@User: %s\nTuổi Acc: %d ngày", targetSelectedPlayer.DisplayName, targetSelectedPlayer.Name, targetSelectedPlayer.AccountAge)
-        Settings.TargetPlayerName = targetSelectedPlayer.Name
-    else
-        InfoLabel.Text = "Không tìm thấy người chơi!"
-    end
-end)
-
-addActionButton(PlayerPage, "Teleport Đến Người Chơi", function()
-    if targetSelectedPlayer and targetSelectedPlayer.Character and targetSelectedPlayer.Character:FindFirstChild("HumanoidRootPart") then
-        LocalPlayer.Character.HumanoidRootPart.CFrame = targetSelectedPlayer.Character.HumanoidRootPart.CFrame
-    end
-end)
-
-local viewingTarget = false
-addActionButton(PlayerPage, "Xem Góc Nhìn (Toggle)", function()
-    viewingTarget = not viewingTarget
-    if viewingTarget and targetSelectedPlayer and targetSelectedPlayer.Character then
-        Camera.CameraSubject = targetSelectedPlayer.Character:FindFirstChildOfClass("Humanoid")
-    else
-        Camera.CameraSubject = LocalPlayer.Character:FindFirstChildOfClass("Humanoid")
-    end
-end)
-
-local targetESPActive = false
-addActionButton(PlayerPage, "ESP Riêng Người Chơi Này", function()
-    targetESPActive = not targetESPActive
 end)
 
 ---------------------------------------------------------
--- 7. TAB TỔNG HỢP (AUTO CLICK & WAYPOINT SYSTEM)
+-- 7. TAB TỔNG HỢP (AUTO CLICK & WAYPOINT)
 ---------------------------------------------------------
 local AutoClickPoints = {}
 
@@ -1314,15 +1041,11 @@ ACSizeBox.FocusLost:Connect(function()
     local val = tonumber(ACSizeBox.Text)
     if val then
         Settings.AC_CircleSize = val
-        for _, p in pairs(AutoClickPoints) do
-            p.Frame.Size = UDim2.new(0, val, 0, val)
-        end
+        for _, p in pairs(AutoClickPoints) do p.Frame.Size = UDim2.new(0, val, 0, val) end
     end
 end)
 
-ACSettingsBtn.MouseButton1Click:Connect(function()
-    ACSettingsFrame.Visible = not ACSettingsFrame.Visible
-end)
+ACSettingsBtn.MouseButton1Click:Connect(function() ACSettingsFrame.Visible = not ACSettingsFrame.Visible end)
 
 local function createAutoClickPoint()
     local id = #AutoClickPoints + 1
@@ -1355,7 +1078,6 @@ local function createAutoClickPoint()
 end
 
 ACAddBtn.MouseButton1Click:Connect(createAutoClickPoint)
-
 ACDelBtn.MouseButton1Click:Connect(function()
     if #AutoClickPoints > 0 then
         local last = AutoClickPoints[#AutoClickPoints]
@@ -1363,7 +1085,6 @@ ACDelBtn.MouseButton1Click:Connect(function()
         table.remove(AutoClickPoints, #AutoClickPoints)
     end
 end)
-
 ACClearBtn.MouseButton1Click:Connect(function()
     for _, p in pairs(AutoClickPoints) do p.Frame:Destroy() end
     AutoClickPoints = {}
@@ -1385,26 +1106,19 @@ ACRunBtn.MouseButton1Click:Connect(function()
 
                 for i, p in ipairs(AutoClickPoints) do
                     if not Settings.AC_Running then break end
-                    
                     local absPos = p.Frame.AbsolutePosition
                     local absSize = p.Frame.AbsoluteSize
-                    
                     local centerX = absPos.X + (absSize.X / 2)
-                    local centerY = absPos.Y + (absSize.Y / 2)
-
-                    local inset = GuiService:GetGuiInset()
-                    centerY = centerY + inset.Y
+                    local centerY = absPos.Y + (absSize.Y / 2) + GuiService:GetGuiInset().Y
 
                     VirtualInputManager:SendMouseButtonEvent(centerX, centerY, 0, true, game, 0)
                     task.wait(0.02)
                     VirtualInputManager:SendMouseButtonEvent(centerX, centerY, 0, false, game, 0)
                     task.wait(Settings.AC_Delay)
                 end
-
                 loops = loops + 1
                 task.wait(0.05)
             end
-            
             Settings.AC_Running = false
             ACRunBtn.Text = "▶"
             ACRunBtn.BackgroundColor3 = Color3.fromRGB(40, 160, 90)
@@ -1417,13 +1131,10 @@ end)
 
 addSimpleToggle(MiscPage, "Bật Thanh Auto Click Nổi", function(state)
     ACBar.Visible = state
-    if not state then
-        ACSettingsFrame.Visible = false
-        Settings.AC_Running = false
-    end
+    if not state then ACSettingsFrame.Visible = false Settings.AC_Running = false end
 end)
 
------------------- HỆ THỐNG WAYPOINT CAO CẤP ------------------
+------------------ WAYPOINT SYSTEM ------------------
 local WaypointList = {}
 local WPFolder = workspace:FindFirstChild("MobileHubWaypoints") or Instance.new("Folder", workspace)
 WPFolder.Name = "MobileHubWaypoints"
@@ -1487,9 +1198,7 @@ WPModeBtn.MouseButton1Click:Connect(function()
     end
 end)
 
-WPSettingsBtn.MouseButton1Click:Connect(function()
-    WPSettingsFrame.Visible = not WPSettingsFrame.Visible
-end)
+WPSettingsBtn.MouseButton1Click:Connect(function() WPSettingsFrame.Visible = not WPSettingsFrame.Visible end)
 
 local function createWaypointVisual(cframe, index)
     local pole = Instance.new("Part")
@@ -1523,8 +1232,7 @@ WPAddBtn.MouseButton1Click:Connect(function()
     local char = LocalPlayer.Character
     if char and char:FindFirstChild("HumanoidRootPart") then
         local cf = char.HumanoidRootPart.CFrame
-        local index = #WaypointList + 1
-        local pole = createWaypointVisual(cf, index)
+        local pole = createWaypointVisual(cf, #WaypointList + 1)
         table.insert(WaypointList, {CFrame = cf, Part = pole})
     end
 end)
@@ -1538,9 +1246,7 @@ WPDelBtn.MouseButton1Click:Connect(function()
 end)
 
 WPClearBtn.MouseButton1Click:Connect(function()
-    for _, wp in pairs(WaypointList) do
-        if wp.Part then wp.Part:Destroy() end
-    end
+    for _, wp in pairs(WaypointList) do if wp.Part then wp.Part:Destroy() end end
     WaypointList = {}
 end)
 
@@ -1553,14 +1259,10 @@ WPRunBtn.MouseButton1Click:Connect(function()
         WPRunBtn.BackgroundColor3 = Color3.fromRGB(200, 50, 50)
 
         task.spawn(function()
-            local char = LocalPlayer.Character
-            local hrp = char and char:FindFirstChild("HumanoidRootPart")
-
             while Settings.WP_Running do
                 for i, wp in ipairs(WaypointList) do
                     if not Settings.WP_Running or not LocalPlayer.Character or not LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then break end
-                    
-                    hrp = LocalPlayer.Character.HumanoidRootPart
+                    local hrp = LocalPlayer.Character.HumanoidRootPart
 
                     if Settings.WP_Mode == "Teleport" then
                         hrp.CFrame = wp.CFrame
@@ -1568,31 +1270,19 @@ WPRunBtn.MouseButton1Click:Connect(function()
                     elseif Settings.WP_Mode == "Fly" then
                         local distance = (hrp.Position - wp.CFrame.Position).Magnitude
                         local duration = distance / Settings.WP_FlySpeed
-                        
-                        local tweenInfo = TweenInfo.new(duration, Enum.EasingStyle.Linear)
-                        local tween = TweenService:Create(hrp, tweenInfo, {CFrame = wp.CFrame})
+                        local tween = TweenService:Create(hrp, TweenInfo.new(duration, Enum.EasingStyle.Linear), {CFrame = wp.CFrame})
                         
                         tween:Play()
-                        
                         local completed = false
-                        local conn
-                        conn = tween.Completed:Connect(function()
-                            completed = true
-                            if conn then conn:Disconnect() end
-                        end)
+                        local conn = tween.Completed:Connect(function() completed = true end)
 
-                        while not completed and Settings.WP_Running do
-                            task.wait(0.05)
-                        end
-                        if not Settings.WP_Running then
-                            tween:Cancel()
-                            break
-                        end
+                        while not completed and Settings.WP_Running do task.wait(0.05) end
+                        if conn then conn:Disconnect() end
+                        if not Settings.WP_Running then tween:Cancel() break end
                     end
                 end
                 task.wait(0.1)
             end
-
             Settings.WP_Running = false
             WPRunBtn.Text = "▶"
             WPRunBtn.BackgroundColor3 = Color3.fromRGB(40, 160, 90)
@@ -1605,318 +1295,11 @@ end)
 
 addSimpleToggle(MiscPage, "Bật Thanh Waypoint Nổi", function(state)
     WPBar.Visible = state
-    if not state then
-        WPSettingsFrame.Visible = false
-        Settings.WP_Running = false
-    end
+    if not state then WPSettingsFrame.Visible = false Settings.WP_Running = false end
 end)
 
 ---------------------------------------------------------
--- 8. HỆ THỐNG FRIEND CHAT (ĐÃ SỬA: KHÔNG TỰ HIỆN KHI VÀO GAME)
----------------------------------------------------------
-local ChatDataStore = {} 
-local CurrentSelectedFriend = nil
-
--- Floating Mail Button (Ẩn mặc định)
-local MailButton = Instance.new("ImageButton", ScreenGui)
-MailButton.Size = UDim2.new(0, 55, 0, 55)
-MailButton.Position = UDim2.new(0.02, 0, 0.28, 0)
-MailButton.BackgroundColor3 = Color3.fromRGB(24, 30, 42)
-MailButton.Image = "rbxassetid://6031077364" 
-MailButton.ImageColor3 = Color3.fromRGB(0, 255, 200)
-MailButton.Active = true
-MailButton.Visible = false -- Tắt tự động hiển thị khi vào game
-
-local MBCorner = Instance.new("UICorner", MailButton) MBCorner.CornerRadius = UDim.new(0, 28)
-local MBStroke = Instance.new("UIStroke", MailButton) MBStroke.Color = Color3.fromRGB(0, 170, 255) MBStroke.Thickness = 2
-
-local RedDotNotify = Instance.new("Frame", MailButton)
-RedDotNotify.Size = UDim2.new(0, 16, 0, 16)
-RedDotNotify.Position = UDim2.new(0.7, 0, 0, 0)
-RedDotNotify.BackgroundColor3 = Color3.fromRGB(255, 40, 40)
-RedDotNotify.Visible = false
-local RDCorner = Instance.new("UICorner", RedDotNotify) RDCorner.CornerRadius = UDim.new(1, 0)
-local RDStroke = Instance.new("UIStroke", RedDotNotify) RDStroke.Color = Color3.fromRGB(255, 255, 255) RDStroke.Thickness = 1
-
--- Cơ chế Hold 2s to Drag
-local isDraggingMail = false
-local holdStartTime = 0
-local dragTouchPos = nil
-local startMailPos = nil
-
-MailButton.InputBegan:Connect(function(input)
-    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-        holdStartTime = os.clock()
-        dragTouchPos = input.Position
-        startMailPos = MailButton.Position
-    end
-end)
-
-UserInputService.InputChanged:Connect(function(input)
-    if (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) and dragTouchPos then
-        if os.clock() - holdStartTime >= 2 then
-            isDraggingMail = true
-            local delta = input.Position - dragTouchPos
-            MailButton.Position = UDim2.new(startMailPos.X.Scale, startMailPos.X.Offset + delta.X, startMailPos.Y.Scale, startMailPos.Y.Offset + delta.Y)
-        end
-    end
-end)
-
--- Messenger Main Frame (Ẩn mặc định)
-local ChatMainFrame = Instance.new("Frame", ScreenGui)
-ChatMainFrame.Size = UDim2.new(0, 550, 0, 340)
-ChatMainFrame.Position = UDim2.new(0.5, -275, 0.5, -170)
-ChatMainFrame.BackgroundColor3 = Color3.fromRGB(16, 20, 28)
-ChatMainFrame.Visible = false -- Tắt tự động hiển thị khi vào game
-ChatMainFrame.Active = true
-ChatMainFrame.Draggable = true
-
-local CMC = Instance.new("UICorner", ChatMainFrame) CMC.CornerRadius = UDim.new(0, 10)
-local CMS = Instance.new("UIStroke", ChatMainFrame) CMS.Color = Color3.fromRGB(0, 255, 200) CMS.Thickness = 1.5
-
-MailButton.InputEnded:Connect(function(input)
-    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-        if not isDraggingMail and (os.clock() - holdStartTime < 2) then
-            ChatMainFrame.Visible = not ChatMainFrame.Visible
-            if ChatMainFrame.Visible then
-                RedDotNotify.Visible = false
-            end
-        end
-        isDraggingMail = false
-        dragTouchPos = nil
-    end
-end)
-
--- Layout Messenger
-local ChatHeader = Instance.new("Frame", ChatMainFrame)
-ChatHeader.Size = UDim2.new(1, 0, 0, 36)
-ChatHeader.BackgroundColor3 = Color3.fromRGB(10, 14, 20)
-local CHC = Instance.new("UICorner", ChatHeader) CHC.CornerRadius = UDim.new(0, 10)
-
-local ChatTitle = Instance.new("TextLabel", ChatHeader)
-ChatTitle.Size = UDim2.new(1, -40, 1, 0)
-ChatTitle.Position = UDim2.new(0, 12, 0, 0)
-ChatTitle.Text = "💬 FRIEND MESSENGER (SCRIPT HUB NETWORK)"
-ChatTitle.TextColor3 = Color3.fromRGB(0, 255, 200)
-ChatTitle.Font = Enum.Font.GothamBold
-ChatTitle.TextSize = 12
-ChatTitle.TextXAlignment = Enum.TextXAlignment.Left
-
-local ChatCloseBtn = Instance.new("TextButton", ChatHeader)
-ChatCloseBtn.Size = UDim2.new(0, 35, 1, 0)
-ChatCloseBtn.Position = UDim2.new(1, -35, 0, 0)
-ChatCloseBtn.Text = "✕"
-ChatCloseBtn.TextColor3 = Color3.fromRGB(255, 80, 80)
-ChatCloseBtn.BackgroundTransparency = 1
-ChatCloseBtn.Font = Enum.Font.GothamBold
-ChatCloseBtn.MouseButton1Click:Connect(function() ChatMainFrame.Visible = false end)
-
--- SideBar
-local FriendSidebar = Instance.new("Frame", ChatMainFrame)
-FriendSidebar.Position = UDim2.new(0, 5, 0, 42)
-FriendSidebar.Size = UDim2.new(0.35, 0, 1, -48)
-FriendSidebar.BackgroundColor3 = Color3.fromRGB(22, 27, 36)
-local FSC = Instance.new("UICorner", FriendSidebar) FSC.CornerRadius = UDim.new(0, 6)
-
-local FriendScroll = Instance.new("ScrollingFrame", FriendSidebar)
-FriendScroll.Size = UDim2.new(1, -4, 1, -4)
-FriendScroll.Position = UDim2.new(0, 2, 0, 2)
-FriendScroll.BackgroundTransparency = 1
-FriendScroll.CanvasSize = UDim2.new(0, 0, 0, 0)
-FriendScroll.ScrollBarThickness = 3
-
-local FSLayout = Instance.new("UIListLayout", FriendScroll)
-FSLayout.Padding = UDim.new(0, 4)
-FSLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
-    FriendScroll.CanvasSize = UDim2.new(0, 0, 0, FSLayout.AbsoluteContentSize.Y + 4)
-end)
-
--- Container
-local ChatWindow = Instance.new("Frame", ChatMainFrame)
-ChatWindow.Position = UDim2.new(0.36, 5, 0, 42)
-ChatWindow.Size = UDim2.new(0.63, -10, 1, -48)
-ChatWindow.BackgroundColor3 = Color3.fromRGB(22, 27, 36)
-local CWC = Instance.new("UICorner", ChatWindow) CWC.CornerRadius = UDim.new(0, 6)
-
-local ActiveFriendLabel = Instance.new("TextLabel", ChatWindow)
-ActiveFriendLabel.Size = UDim2.new(1, 0, 0, 26)
-ActiveFriendLabel.BackgroundColor3 = Color3.fromRGB(28, 34, 46)
-ActiveFriendLabel.Text = " Chọn bạn bè để bắt đầu trò chuyện"
-ActiveFriendLabel.TextColor3 = Color3.fromRGB(0, 255, 200)
-ActiveFriendLabel.Font = Enum.Font.GothamBold
-ActiveFriendLabel.TextSize = 10
-ActiveFriendLabel.TextXAlignment = Enum.TextXAlignment.Left
-local AFLC = Instance.new("UICorner", ActiveFriendLabel) AFLC.CornerRadius = UDim.new(0, 6)
-
-local MessagesScroll = Instance.new("ScrollingFrame", ChatWindow)
-MessagesScroll.Position = UDim2.new(0, 4, 0, 30)
-MessagesScroll.Size = UDim2.new(1, -8, 1, -68)
-MessagesScroll.BackgroundTransparency = 1
-MessagesScroll.CanvasSize = UDim2.new(0, 0, 0, 0)
-MessagesScroll.ScrollBarThickness = 3
-
-local MSLayout = Instance.new("UIListLayout", MessagesScroll)
-MSLayout.Padding = UDim.new(0, 6)
-MSLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
-    MessagesScroll.CanvasSize = UDim2.new(0, 0, 0, MSLayout.AbsoluteContentSize.Y + 6)
-    MessagesScroll.CanvasPosition = Vector2.new(0, MessagesScroll.AbsoluteCanvasSize.Y)
-end)
-
--- Input Chat
-local InputChatFrame = Instance.new("Frame", ChatWindow)
-InputChatFrame.Position = UDim2.new(0, 4, 1, -34)
-InputChatFrame.Size = UDim2.new(1, -8, 0, 30)
-InputChatFrame.BackgroundTransparency = 1
-
-local MessageInputBox = Instance.new("TextBox", InputChatFrame)
-MessageInputBox.Size = UDim2.new(0.84, 0, 1, 0)
-MessageInputBox.PlaceholderText = "Nhập tin nhắn..."
-MessageInputBox.BackgroundColor3 = Color3.fromRGB(30, 36, 48)
-MessageInputBox.TextColor3 = Color3.fromRGB(255, 255, 255)
-MessageInputBox.Font = Enum.Font.Gotham
-MessageInputBox.TextSize = 10
-MessageInputBox.TextXAlignment = Enum.TextXAlignment.Left
-local MIBMargin = Instance.new("UIPadding", MessageInputBox) MIBMargin.PaddingLeft = UDim.new(0, 8)
-local MIBC = Instance.new("UICorner", MessageInputBox) MIBC.CornerRadius = UDim.new(0, 6)
-
-local SendMsgBtn = Instance.new("TextButton", InputChatFrame)
-SendMsgBtn.Position = UDim2.new(0.86, 0, 0, 0)
-SendMsgBtn.Size = UDim2.new(0.14, 0, 1, 0)
-SendMsgBtn.Text = "➔"
-SendMsgBtn.BackgroundColor3 = Color3.fromRGB(0, 170, 255)
-SendMsgBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
-SendMsgBtn.Font = Enum.Font.GothamBold
-SendMsgBtn.TextSize = 14
-local SMBC = Instance.new("UICorner", SendMsgBtn) SMBC.CornerRadius = UDim.new(0, 6)
-
-local function RenderChatHistory()
-    for _, child in pairs(MessagesScroll:GetChildren()) do
-        if not child:IsA("UIListLayout") then child:Destroy() end
-    end
-
-    if not CurrentSelectedFriend then return end
-    local history = ChatDataStore[CurrentSelectedFriend.UserId] or {}
-
-    for _, msg in ipairs(history) do
-        local isMe = msg.SenderId == LocalPlayer.UserId
-        
-        local msgBubble = Instance.new("Frame", MessagesScroll)
-        msgBubble.Size = UDim2.new(0.7, 0, 0, 28)
-        msgBubble.Position = isMe and UDim2.new(0.3, 0, 0, 0) or UDim2.new(0, 0, 0, 0)
-        msgBubble.BackgroundColor3 = isMe and Color3.fromRGB(0, 140, 220) or Color3.fromRGB(40, 48, 64)
-        local MBC = Instance.new("UICorner", msgBubble) MBC.CornerRadius = UDim.new(0, 6)
-
-        local msgTxt = Instance.new("TextLabel", msgBubble)
-        msgTxt.Size = UDim2.new(1, -12, 1, 0)
-        msgTxt.Position = UDim2.new(0, 6, 0, 0)
-        msgTxt.Text = msg.Text
-        msgTxt.TextColor3 = Color3.fromRGB(255, 255, 255)
-        msgTxt.Font = Enum.Font.Gotham
-        msgTxt.TextSize = 9
-        msgTxt.TextWrapped = true
-        msgTxt.TextXAlignment = isMe and Enum.TextXAlignment.Right or Enum.TextXAlignment.Left
-    end
-end
-
-local function SendFriendMessage()
-    local text = MessageInputBox.Text:match("^%s*(.-)%s*$")
-    if text == "" or not CurrentSelectedFriend then return end
-
-    local friendId = CurrentSelectedFriend.UserId
-    if not ChatDataStore[friendId] then ChatDataStore[friendId] = {} end
-
-    table.insert(ChatDataStore[friendId], {
-        SenderId = LocalPlayer.UserId,
-        Text = text,
-        Time = os.time()
-    })
-
-    MessageInputBox.Text = ""
-    RenderChatHistory()
-end
-
-SendMsgBtn.MouseButton1Click:Connect(SendFriendMessage)
-MessageInputBox.FocusLost:Connect(function(enterPressed)
-    if enterPressed then SendFriendMessage() end
-end)
-
-local function LoadFriendListChat()
-    for _, child in pairs(FriendScroll:GetChildren()) do
-        if not child:IsA("UIListLayout") then child:Destroy() end
-    end
-
-    task.spawn(function()
-        local success, friendsPages = pcall(function()
-            return Players:GetFriendsAsync(LocalPlayer.UserId)
-        end)
-
-        if success and friendsPages then
-            while true do
-                for _, item in ipairs(friendsPages:GetCurrentPage()) do
-                    local friendFrame = Instance.new("Frame", FriendScroll)
-                    friendFrame.Size = UDim2.new(1, 0, 0, 40)
-                    friendFrame.BackgroundColor3 = Color3.fromRGB(30, 36, 48)
-                    local FFC = Instance.new("UICorner", friendFrame) FFC.CornerRadius = UDim.new(0, 5)
-
-                    local fAvatar = Instance.new("ImageLabel", friendFrame)
-                    fAvatar.Size = UDim2.new(0, 32, 0, 32)
-                    fAvatar.Position = UDim2.new(0, 4, 0.5, -16)
-                    fAvatar.BackgroundColor3 = Color3.fromRGB(20, 24, 32)
-                    local FAC = Instance.new("UICorner", fAvatar) FAC.CornerRadius = UDim.new(1, 0)
-
-                    task.spawn(function()
-                        pcall(function()
-                            fAvatar.Image = Players:GetUserThumbnailAsync(item.Id, Enum.ThumbnailType.HeadShot, Enum.ThumbnailSize.Size150x150)
-                        end)
-                    end)
-
-                    local GreenDot = Instance.new("Frame", fAvatar)
-                    GreenDot.Size = UDim2.new(0, 10, 0, 10)
-                    GreenDot.Position = UDim2.new(0.7, 0, 0.7, 0)
-                    GreenDot.BackgroundColor3 = Color3.fromRGB(0, 255, 120)
-                    GreenDot.Visible = item.IsOnline
-                    local GDC = Instance.new("UICorner", GreenDot) GDC.CornerRadius = UDim.new(1, 0)
-                    local GDS = Instance.new("UIStroke", GreenDot) GDS.Color = Color3.fromRGB(20, 24, 32) GDS.Thickness = 1
-
-                    local fName = Instance.new("TextLabel", friendFrame)
-                    fName.Position = UDim2.new(0, 42, 0, 0)
-                    fName.Size = UDim2.new(0.65, 0, 1, 0)
-                    fName.Text = string.format("<b>%s</b>\n@%s", item.DisplayName, item.Username)
-                    fName.TextColor3 = Color3.fromRGB(255, 255, 255)
-                    fName.RichText = true
-                    fName.Font = Enum.Font.Gotham
-                    fName.TextSize = 9
-                    fName.TextXAlignment = Enum.TextXAlignment.Left
-
-                    local selectBtn = Instance.new("TextButton", friendFrame)
-                    selectBtn.Size = UDim2.new(1, 0, 1, 0)
-                    selectBtn.BackgroundTransparency = 1
-                    selectBtn.Text = ""
-
-                    selectBtn.MouseButton1Click:Connect(function()
-                        CurrentSelectedFriend = {UserId = item.Id, Name = item.Username, Display = item.DisplayName}
-                        ActiveFriendLabel.Text = string.format(" 💬 Trò chuyện với: %s (@%s)", item.DisplayName, item.Username)
-                        RenderChatHistory()
-                    end)
-                end
-
-                if friendsPages.IsFinished then break end
-                friendsPages:AdvanceToNextPageAsync()
-            end
-        end
-    end)
-end
-
-LoadFriendListChat()
-
--- Công tắc Bật/Tắt Hộp Thư Chat Nổi
-addSimpleToggle(MiscPage, "Bật Hộp Thư Chat Nổi", function(state)
-    MailButton.Visible = state
-    if not state then ChatMainFrame.Visible = false end
-end)
-
----------------------------------------------------------
--- HỆ THỐNG ESP & GAMEPLAY LOOP
+-- ESP & GAMEPLAY LOOP
 ---------------------------------------------------------
 UserInputService.JumpRequest:Connect(function()
     if Settings.InfJumpActive and LocalPlayer.Character and LocalPlayer.Character:FindFirstChildOfClass("Humanoid") then
@@ -1971,10 +1354,8 @@ local function ensureESP(p)
     end
 end
 
--- Hàm Raycast kiểm tra vật cản (Wall Check)
 local function IsVisible(targetPart)
-    if not Settings.AimWallCheck then return true end -- Nếu bật Xuyên Tường thì luôn trả về true
-    
+    if not Settings.AimWallCheck then return true end
     local myChar = LocalPlayer.Character
     if not myChar or not myChar:FindFirstChild("HumanoidRootPart") then return false end
 
@@ -1987,8 +1368,7 @@ local function IsVisible(targetPart)
     raycastParams.FilterDescendantsInstances = {myChar, targetPart.Parent}
     raycastParams.IgnoreWater = true
 
-    local result = workspace:Raycast(origin, direction, raycastParams)
-    return result == nil -- Nếu không va chạm vật cản nào thì trả về true
+    return workspace:Raycast(origin, direction, raycastParams) == nil
 end
 
 RunService.RenderStepped:Connect(function()
@@ -2009,7 +1389,6 @@ RunService.RenderStepped:Connect(function()
     for _, p in pairs(Players:GetPlayers()) do
         if p ~= LocalPlayer and p.Character then
             ensureESP(p)
-            
             local char = p.Character
             local hum = char:FindFirstChildOfClass("Humanoid")
             local hrp = char:FindFirstChild("HumanoidRootPart")
@@ -2017,17 +1396,13 @@ RunService.RenderStepped:Connect(function()
             if hum and hrp then
                 local hl = char:FindFirstChild("ESP_Highlight")
                 local bb = hrp:FindFirstChild("ESP_Billboard")
-                local isTarget = (p == targetSelectedPlayer and targetESPActive)
 
-                if hl then
-                    hl.Enabled = Settings.ESP_Highlight or Settings.ESP_Full or isTarget
-                end
+                if hl then hl.Enabled = Settings.ESP_Highlight or Settings.ESP_Full end
 
                 if bb then
                     local txtName = bb:FindFirstChild("NameLabel")
                     local txtHP = bb:FindFirstChild("HPLabel")
-                    
-                    bb.Enabled = Settings.ESP_Name or Settings.ESP_Full or isTarget
+                    bb.Enabled = Settings.ESP_Name or Settings.ESP_Full
 
                     local hpPercent = math.clamp(hum.Health / hum.MaxHealth, 0, 1)
                     local currentColor = getHealthColor(hpPercent)
@@ -2036,7 +1411,7 @@ RunService.RenderStepped:Connect(function()
                         txtName.Text = p.DisplayName
                         txtName.TextColor3 = currentColor
 
-                        if Settings.ESP_Full or isTarget then
+                        if Settings.ESP_Full then
                             txtHP.Text = string.format("[HP: %d/%d]", math.floor(hum.Health), math.floor(hum.MaxHealth))
                             txtHP.TextColor3 = currentColor
                             txtHP.Visible = true
@@ -2045,10 +1420,7 @@ RunService.RenderStepped:Connect(function()
                         end
                     end
 
-                    if hl then
-                        hl.FillColor = currentColor
-                        hl.OutlineColor = currentColor
-                    end
+                    if hl then hl.FillColor = currentColor hl.OutlineColor = currentColor end
                 end
             end
         end
@@ -2058,10 +1430,7 @@ RunService.RenderStepped:Connect(function()
     if char and char:FindFirstChildOfClass("Humanoid") then
         local hum = char:FindFirstChildOfClass("Humanoid")
         if Settings.WalkSpeedActive then hum.WalkSpeed = Settings.WalkSpeedVal end
-        if Settings.JumpPowerActive then
-            hum.UseJumpPower = true
-            hum.JumpPower = Settings.JumpPowerVal
-        end
+        if Settings.JumpPowerActive then hum.UseJumpPower = true hum.JumpPower = Settings.JumpPowerVal end
         if Settings.GravityActive then workspace.Gravity = Settings.GravityVal end
     end
 
