@@ -1,5 +1,5 @@
 -- =================================================================
--- KING LEGACY - DIRECT JOBID TELEPORT FIX
+-- KING LEGACY - PURE JOBID TELEPORT FIX
 -- =================================================================
 
 local Players = game:GetService("Players")
@@ -16,7 +16,7 @@ local BossCycles = {
 local SelectedBoss = "Sea King"
 
 local ScreenGui = Instance.new("ScreenGui")
-ScreenGui.Name = "KL_DirectTeleport"
+ScreenGui.Name = "KL_PureTeleport"
 ScreenGui.Parent = (gethui and gethui()) or game:GetService("CoreGui") or PlayerGui
 
 local ToggleBtn = Instance.new("TextButton")
@@ -44,7 +44,7 @@ end)
 local Title = Instance.new("TextLabel")
 Title.Size = UDim2.new(1, 0, 0, 30)
 Title.BackgroundColor3 = Color3.fromRGB(30, 30, 42)
-Title.Text = "LỌC BOSS - TELEPORT TRỰC TIẾP"
+Title.Text = "LỌC BOSS - TELEPORT MÃ SERVER"
 Title.TextColor3 = Color3.fromRGB(0, 255, 180)
 Title.Font = Enum.Font.SourceSansBold
 Title.TextSize = 12
@@ -79,7 +79,7 @@ local UIList = Instance.new("UIListLayout")
 UIList.Parent = Scroll
 UIList.Padding = UDim.new(0, 4)
 
-local function ScanDirect()
+local function ScanPure()
     for _, c in pairs(Scroll:GetChildren()) do if c:IsA("Frame") then c:Destroy() end end
 
     local browserUI = nil
@@ -127,8 +127,6 @@ local function ScanDirect()
 
                 if timeLeft > 0 and timeLeft <= 300 then
                     count = count + 1
-                    
-                    -- Lấy thông tin dòng chứa server này để trích xuất JobId hoặc kích hoạt chính xác
                     local parentFrame = item.Parent
                     
                     local ServerItem = Instance.new("Frame")
@@ -156,29 +154,36 @@ local function ScanDirect()
                     JoinBtn.TextSize = 11
                     JoinBtn.Parent = ServerItem
 
-                    -- Dùng phương pháp mô phỏng click trực tiếp vào vị trí tọa độ nút Join gốc của game trên màn hình
+                    -- Trích xuất JobId trực tiếp từ kết nối hoặc thuộc tính của nút Join gốc
                     JoinBtn.MouseButton1Click:Connect(function()
-                        JoinBtn.Text = "Đang vào..."
+                        JoinBtn.Text = "Đang dịch chuyển..."
                         if parentFrame then
                             for _, child in pairs(parentFrame:GetChildren()) do
                                 if child:IsA("TextButton") and child.Text == "Join" then
-                                    -- Kích hoạt sự kiện bằng cách giả lập nhấn tâm nút của game
-                                    local vim = game:GetService("VirtualInputManager")
-                                    local absPos = child.AbsolutePosition
-                                    local absSize = child.AbsoluteSize
-                                    
-                                    -- Click chuột ảo vào nút Join gốc của game
-                                    if vim then
-                                        vim:SendMouseButtonEvent(absPos.X + absSize.X/2, absPos.Y + absSize.Y/2, 0, true, game, 0)
-                                        task.wait(0.05)
-                                        vim:SendMouseButtonEvent(absPos.X + absSize.X/2, absPos.Y + absSize.Y/2, 0, false, game, 0)
-                                    else
-                                        -- Fallback: Gọi trực tiếp các phương thức click khác nếu có
-                                        for _, conn in pairs(getconnections(child.MouseButton1Click)) do
-                                            conn:Fire()
+                                    -- Lấy các kết nối gắn với nút Join gốc để tìm JobId ẩn bên trong script của game
+                                    for _, conn in pairs(getconnections(child.MouseButton1Click)) do
+                                        local func = conn.Function
+                                        if func then
+                                            local constants = debug.getconstants(func)
+                                            for _, c in pairs(constants) do
+                                                if type(c) == "string" and #c == 36 and c:find("-") then
+                                                    -- Tìm thấy JobId dạng chuẩn (ví dụ: xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx)
+                                                    TeleportService:TeleportToPlaceInstance(game.PlaceId, c, LocalPlayer)
+                                                    return
+                                                end
+                                            end
                                         end
                                     end
-                                    break
+                                end
+                            end
+                        end
+                        -- Fallback nếu không lấy được JobId qua hằng số: Kích hoạt trực tiếp nút gốc lần cuối
+                        if parentFrame then
+                            for _, child in pairs(parentFrame:GetChildren()) do
+                                if child:IsA("TextButton") and child.Text == "Join" then
+                                    for _, conn in pairs(getconnections(child.MouseButton1Click)) do
+                                        conn:Fire()
+                                    end
                                 end
                             end
                         end
@@ -200,4 +205,4 @@ ScanBtn.Font = Enum.Font.SourceSansBold
 ScanBtn.TextSize = 11
 ScanBtn.Parent = MainFrame
 
-ScanBtn.MouseButton1Click:Connect(ScanDirect)
+ScanBtn.MouseButton1Click:Connect(ScanPure)
