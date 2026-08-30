@@ -1,5 +1,5 @@
 -- =================================================================
--- KING LEGACY - AUTO RƯƠNG (CHỈ NHẶT ĐÚNG THƯ MỤC RƯƠNG CHUẨN)
+-- KING LEGACY - AUTO RƯƠNG (LOẠI BỎ RƯƠNG ĐẦU LÂU / MINION BOSS)
 -- =================================================================
 
 local Players = game:GetService("Players")
@@ -15,7 +15,7 @@ local AutoChestRunning = false
 local HopDelay = 15
 
 local ScreenGui = Instance.new("ScreenGui")
-ScreenGui.Name = "KL_ChestStrict"
+ScreenGui.Name = "KL_ChestNoSkull"
 ScreenGui.Parent = CoreGui
 
 local ToggleBtn = Instance.new("TextButton")
@@ -43,10 +43,10 @@ end)
 local Title = Instance.new("TextLabel")
 Title.Size = UDim2.new(1, 0, 0, 30)
 Title.BackgroundColor3 = Color3.fromRGB(30, 30, 42)
-Title.Text = "AUTO RƯƠNG CHUẨN (LỌC STRICT MINIONS)"
+Title.Text = "AUTO RƯƠNG (ĐÃ FIX RƯƠNG ĐẦU LÂU MINION)"
 Title.TextColor3 = Color3.fromRGB(0, 255, 180)
 Title.Font = Enum.Font.SourceSansBold
-Title.TextSize = 10
+Title.TextSize = 9
 Title.Parent = MainFrame
 
 local TimeBoxContainer = Instance.new("Frame")
@@ -114,7 +114,7 @@ local UIList = Instance.new("UIListLayout")
 UIList.Parent = Scroll
 UIList.Padding = UDim.new(0, 4)
 
--- Thuật toán kiểm tra thông minh: Chỉ quét các đối tượng KHÔNG nằm bên trong thư mục Enemy/Monster/Minions
+-- Bộ lọc siêu cấp: Chặn rương đầu lâu, rương boss, rương quái minion
 task.spawn(function()
     while true do
         task.wait(0.4)
@@ -125,23 +125,23 @@ task.spawn(function()
                 if not AutoChestRunning then break end
                 
                 local name = obj.Name:lower()
+                local parentName = obj.Parent and obj.Parent.Name:lower() or ""
                 
-                -- Kiểm tra xem có phải rương không (chỉ nhận diện từ "chest" rõ ràng)
+                -- Chỉ quét các đối tượng có chữ chest
                 if name:find("chest") then
-                    -- Kiểm tra xem vật thể có nằm trong các khu vực/thư mục của quái hay không bằng cách check toàn bộ đường dẫn tổ tiên (FullName)
                     local currentParent = obj.Parent
                     local isInsideMobOrMinion = false
                     
                     while currentParent and currentParent ~= Workspace do
                         local pName = currentParent.Name:lower()
-                        if pName:find("minion") or pName:find("mob") or pName:find("enemy") or pName:find("monster") or pName:find("quest") or pName:find("gacha") or pName:find("boss") or pName:find("npc") then
+                        if pName:find("minion") or pName:find("mob") or pName:find("enemy") or pName:find("monster") or pName:find("quest") or pName:find("gacha") or pName:find("boss") or pName:find("npc") or pName:find("skull") or pName:find("special") then
                             isInsideMobOrMinion = true
                             break
                         end
                         currentParent = currentParent.Parent
                     end
                     
-                    -- Thêm các từ khóa phụ loại trừ trực tiếp tên
+                    -- Thêm từ khóa lọc loại trừ rương đầu lâu/boss/minion cụ thể
                     local isExcluded = name:find("minion") 
                         or name:find("mob") 
                         or name:find("enemy") 
@@ -151,6 +151,9 @@ task.spawn(function()
                         or name:find("gacha")
                         or name:find("effect")
                         or name:find("anim")
+                        or name:find("skull")
+                        or name:find("special")
+                        or name:find("reward")
 
                     if not isInsideMobOrMinion and not isExcluded then
                         local part = nil
