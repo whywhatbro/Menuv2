@@ -1,11 +1,11 @@
 -- =================================================================
--- KING LEGACY - AUTO TOGGLE BROWSER JOIN FIX (BẢN TỐI ƯU CUỐI CÙNG)
+-- KING LEGACY - AUTO TOGGLE BROWSER JOIN FIX (BẢN TELEPORT TRỰC TIẾP)
 -- =================================================================
 
 local Players = game:GetService("Players")
 local LocalPlayer = Players.LocalPlayer
 local PlayerGui = LocalPlayer:WaitForChild("PlayerGui")
-local VirtualInputManager = game:GetService("VirtualInputManager")
+local TeleportService = game:GetService("TeleportService")
 
 local BossCycles = {
     ["Sea King"] = 3600,
@@ -127,8 +127,17 @@ local function ScanAndFix()
 
                 if timeLeft > 0 and timeLeft <= 300 then
                     count = count + 1
-                    local originalItemFrame = item.Parent
+                    local parentFrame = item.Parent
                     
+                    -- Quét tìm thông tin mã server ẩn hoặc tên định danh trong thành phần giao diện gốc
+                    local targetId = nil
+                    for _, obj in pairs(parentFrame:GetDescendants()) do
+                        if obj:IsA("TextButton") and obj.Name ~= "" and obj.Name ~= "Join" then
+                            targetId = obj.Name
+                            break
+                        end
+                    end
+
                     local ServerItem = Instance.new("Frame")
                     ServerItem.Size = UDim2.new(1, 0, 0, 42)
                     ServerItem.BackgroundColor3 = Color3.fromRGB(30, 30, 42)
@@ -154,22 +163,17 @@ local function ScanAndFix()
                     JoinBtn.TextSize = 11
                     JoinBtn.Parent = ServerItem
 
-                    -- Giải pháp trực tiếp: Tự động click vào vùng tọa độ của khung server gốc trong bảng game
                     JoinBtn.MouseButton1Click:Connect(function()
-                        JoinBtn.Text = "Đang vào..."
+                        JoinBtn.Text = "Đang dịch chuyển..."
                         
+                        -- Thực hiện lệnh Teleport trực tiếp qua hệ thống Roblox
                         pcall(function()
-                            -- Tự động bật hiển thị bảng server nếu nó đang bị che
-                            local absPos = originalItemFrame.AbsolutePosition
-                            local absSize = originalItemFrame.AbsoluteSize
-                            
-                            -- Giả lập bấm chuột vào vị trí nút Join gốc ước lượng nằm ở góc phải khung server của game
-                            local clickX = absPos.X + absSize.X - 50
-                            local clickY = absPos.Y + absSize.Y / 2
-                            
-                            VirtualInputManager:SendMouseButtonEvent(clickX, clickY, 0, true, game, 1)
-                            task.wait(0.05)
-                            VirtualInputManager:SendMouseButtonEvent(clickX, clickY, 0, false, game, 1)
+                            if targetId and #targetId > 10 then
+                                TeleportService:TeleportToPlaceInstance(game.PlaceId, targetId, LocalPlayer)
+                            else
+                                -- Nếu không lấy được mã riêng, tự động chuyển đến một server khác ngẫu nhiên trong khoảng thời gian này
+                                TeleportService:Teleport(game.PlaceId, LocalPlayer)
+                            end
                         end)
                     end)
                 end
