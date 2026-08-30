@@ -1,10 +1,11 @@
 -- =================================================================
--- KING LEGACY - AUTO TOGGLE BROWSER JOIN FIX
+-- KING LEGACY - AUTO TOGGLE BROWSER JOIN FIX (ĐÃ SỬA LỖI JOIN)
 -- =================================================================
 
 local Players = game:GetService("Players")
 local LocalPlayer = Players.LocalPlayer
 local PlayerGui = LocalPlayer:WaitForChild("PlayerGui")
+local VirtualInputManager = game:GetService("VirtualInputManager")
 
 local BossCycles = {
     ["Sea King"] = 3600,
@@ -157,10 +158,27 @@ local function ScanAndFix()
                         JoinBtn.Text = "Đang vào..."
                         if parentFrame then
                             for _, child in pairs(parentFrame:GetChildren()) do
-                                if child:IsA("TextButton") and child.Text == "Join" then
-                                    -- Kích hoạt trực tiếp toàn bộ connection của game gắn trên nút Join
-                                    for _, conn in pairs(getconnections(child.MouseButton1Click)) do
-                                        conn:Fire()
+                                if child:IsA("TextButton") and (child.Text == "Join" or child.Text:lower() == "join") then
+                                    -- Thử kích hoạt bằng firesignal hoặc getconnections nếu hỗ trợ
+                                    local success = pcall(function()
+                                        if firesignal then
+                                            firesignal(child.MouseButton1Click)
+                                        else
+                                            for _, conn in pairs(getconnections(child.MouseButton1Click)) do
+                                                conn:Fire()
+                                            end
+                                        end
+                                    end)
+                                    
+                                    -- Nếu executor không hỗ trợ, dùng VirtualInputManager để click trực tiếp vào tọa độ nút Join
+                                    if not success then
+                                        task.spawn(function()
+                                            local absPos = child.AbsolutePosition
+                                            local absSize = child.AbsoluteSize
+                                            VirtualInputManager:SendMouseButtonEvent(absPos.X + absSize.X/2, absPos.Y + absSize.Y/2, 0, true, game, 1)
+                                            task.wait(0.05)
+                                            VirtualInputManager:SendMouseButtonEvent(absPos.X + absSize.X/2, absPos.Y + absSize.Y/2, 0, false, game, 1)
+                                        end)
                                     end
                                     break
                                 end
