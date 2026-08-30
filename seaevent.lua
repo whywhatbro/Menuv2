@@ -1,5 +1,5 @@
 -- =================================================================
--- KING LEGACY - V15 PRO (CỐ ĐỊNH FILE LƯU + NÚT BẬT/TẮT AUTO PLAY)
+-- KING LEGACY - V16 PRO (FIX LỖI KHÔNG MỞ ĐƯỢC MENU TRÊN MOBILE)
 -- =================================================================
 
 local Players = game:GetService("Players")
@@ -15,7 +15,7 @@ local Camera = Workspace.CurrentCamera
 
 local ServerJoinTick = tick()
 
--- ================= HỆ THỐNG LƯU CÀI ĐẶT (CỐ ĐỊNH TÊN FILE ĐỂ KHÔNG MẤT DỮ LIỆU) =================
+-- ================= HỆ THỐNG LƯU CÀI ĐẶT =================
 local SettingsFile = "KingLegacy_AutoChest_Settings.json"
 local Settings = { 
     AutoHop = false, 
@@ -24,7 +24,7 @@ local Settings = {
     DotX = 0.5, 
     DotY = 0.5,
     IsLocked = false,
-    AutoPlay = true -- Mặc định bật tính năng tự động bấm Play
+    AutoPlay = true
 }
 
 local function SaveSettings()
@@ -67,9 +67,10 @@ TeleportService.TeleportInitFailed:Connect(function(player, teleportResult, erro
     end
 end)
 
--- ================= GIAO DIỆN CHÍNH & HÌNH TRÒN KÉO THẢ =================
+-- ================= GIAO DIỆN CHÍNH =================
 local ScreenGui = Instance.new("ScreenGui")
-ScreenGui.Name = "KL_MobileMasterGui_V15"
+ScreenGui.Name = "KL_MobileMasterGui_V16"
+ScreenGui.ResetOnSpawn = false
 ScreenGui.Parent = CoreGui
 
 -- HÌNH TRÒN KÉO THẢ ĐẾN NÚT PLAY
@@ -81,6 +82,7 @@ PlayDot.Text = "PLAY"
 PlayDot.TextColor3 = Color3.fromRGB(255, 255, 255)
 PlayDot.Font = Enum.Font.SourceSansBold
 PlayDot.TextSize = 10
+PlayDot.ZIndex = 5
 PlayDot.Parent = ScreenGui
 
 local UICorner = Instance.new("UICorner")
@@ -89,7 +91,7 @@ UICorner.Parent = PlayDot
 
 -- Logic kéo thả
 local dragging = false
-local dragInput, dragStart, startPos
+local dragStart, startPos
 
 PlayDot.InputBegan:Connect(function(input)
     if not Settings.IsLocked and (input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch) then
@@ -126,7 +128,7 @@ PlayDot.InputEnded:Connect(function(input)
     end
 end)
 
--- Nút mở menu
+-- NÚT BẬT/TẮT MENU (ÉP ZIndex CAO NHẤT ĐỂ KHÔNG BỊ CHẶN)
 local ToggleBtn = Instance.new("TextButton")
 ToggleBtn.Size = UDim2.new(0, 45, 0, 45)
 ToggleBtn.Position = UDim2.new(0, 15, 0.3, 0)
@@ -135,6 +137,7 @@ ToggleBtn.Text = "MENU"
 ToggleBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
 ToggleBtn.Font = Enum.Font.SourceSansBold
 ToggleBtn.TextSize = 11
+ToggleBtn.ZIndex = 10
 ToggleBtn.Parent = ScreenGui
 
 local MainFrame = Instance.new("Frame")
@@ -144,17 +147,22 @@ MainFrame.BackgroundColor3 = Color3.fromRGB(20, 20, 28)
 MainFrame.Active = true
 MainFrame.Draggable = true
 MainFrame.Visible = false
+MainFrame.ZIndex = 9
 MainFrame.Parent = ScreenGui
 
-ToggleBtn.MouseButton1Click:Connect(function() MainFrame.Visible = not MainFrame.Visible end)
+-- Sử dụng .Activated để ăn cảm ứng cực tốt trên Mobile
+ToggleBtn.Activated:Connect(function() 
+    MainFrame.Visible = not MainFrame.Visible 
+end)
 
 local Title = Instance.new("TextLabel")
 Title.Size = UDim2.new(1, 0, 0, 30)
 Title.BackgroundColor3 = Color3.fromRGB(30, 30, 42)
-Title.Text = "AUTO EVENT KL V15 (CUSTOM SETTINGS FIX)"
+Title.Text = "AUTO EVENT KL V16 (FIX MOBILE TOUCH)"
 Title.TextColor3 = Color3.fromRGB(0, 255, 180)
 Title.Font = Enum.Font.SourceSansBold
 Title.TextSize = 10
+Title.ZIndex = 9
 Title.Parent = MainFrame
 
 local StatusLabel = Instance.new("TextLabel")
@@ -165,6 +173,7 @@ StatusLabel.Text = "Trạng thái: Sẵn sàng."
 StatusLabel.TextColor3 = Color3.fromRGB(255, 255, 100)
 StatusLabel.Font = Enum.Font.SourceSans
 StatusLabel.TextSize = 11
+StatusLabel.ZIndex = 9
 StatusLabel.Parent = MainFrame
 
 -- NÚT KHÓA / MỞ KHÓA VỊ TRÍ
@@ -176,9 +185,10 @@ LockBtn.Text = Settings.IsLocked and "🔒 KHÓA ĐIỂM NHẤN: ĐANG KHÓA" or
 LockBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
 LockBtn.Font = Enum.Font.SourceSansBold
 LockBtn.TextSize = 10
+LockBtn.ZIndex = 9
 LockBtn.Parent = MainFrame
 
-LockBtn.MouseButton1Click:Connect(function()
+LockBtn.Activated:Connect(function()
     Settings.IsLocked = not Settings.IsLocked
     SaveSettings()
     LockBtn.BackgroundColor3 = Settings.IsLocked and Color3.fromRGB(0, 180, 80) or Color3.fromRGB(180, 50, 50)
@@ -187,14 +197,15 @@ LockBtn.MouseButton1Click:Connect(function()
     StatusLabel.Text = Settings.IsLocked and "Trạng thái: Đã khóa vị trí hình tròn!" or "Trạng thái: Đã mở khóa hình tròn."
 end)
 
--- NÚT BẬT / TẮT TỰ ĐỘNG PLAY (NẰM DƯỚI NÚT KHÓA)
+-- NÚT BẬT / TẮT TỰ ĐỘNG PLAY
 local AutoPlayBtn = Instance.new("TextButton")
 AutoPlayBtn.Size = UDim2.new(1, -16, 0, 32)
 AutoPlayBtn.Position = UDim2.new(0, 8, 0, 102)
-AutoPlayBtn.Parent = MainFrame
 AutoPlayBtn.Font = Enum.Font.SourceSansBold
 AutoPlayBtn.TextSize = 10
 AutoPlayBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+AutoPlayBtn.ZIndex = 9
+AutoPlayBtn.Parent = MainFrame
 
 local function UpdateAutoPlayButton()
     AutoPlayBtn.BackgroundColor3 = getgenv().KL_AutoPlayRunning and Color3.fromRGB(0, 180, 80) or Color3.fromRGB(180, 50, 50)
@@ -202,7 +213,7 @@ local function UpdateAutoPlayButton()
 end
 UpdateAutoPlayButton()
 
-AutoPlayBtn.MouseButton1Click:Connect(function()
+AutoPlayBtn.Activated:Connect(function()
     getgenv().KL_AutoPlayRunning = not getgenv().KL_AutoPlayRunning
     Settings.AutoPlay = getgenv().KL_AutoPlayRunning
     SaveSettings()
@@ -217,6 +228,7 @@ TimeTextBox.Text = tostring(getgenv().KL_HopDelay)
 TimeTextBox.TextColor3 = Color3.fromRGB(0, 255, 180)
 TimeTextBox.Font = Enum.Font.SourceSansBold
 TimeTextBox.TextSize = 12
+TimeTextBox.ZIndex = 9
 TimeTextBox.Parent = MainFrame
 
 local TimeLabel = Instance.new("TextLabel")
@@ -228,6 +240,7 @@ TimeLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
 TimeLabel.Font = Enum.Font.SourceSansBold
 TimeLabel.TextSize = 11
 TimeLabel.TextXAlignment = Enum.TextXAlignment.Left
+TimeLabel.ZIndex = 9
 TimeLabel.Parent = MainFrame
 
 TimeTextBox.FocusLost:Connect(function()
@@ -243,6 +256,7 @@ end)
 local AutoHopBtn = Instance.new("TextButton")
 AutoHopBtn.Size = UDim2.new(1, -16, 0, 32)
 AutoHopBtn.Position = UDim2.new(0, 8, 0, 175)
+AutoHopBtn.ZIndex = 9
 AutoHopBtn.Parent = MainFrame
 AutoHopBtn.Font = Enum.Font.SourceSansBold
 AutoHopBtn.TextSize = 11
@@ -250,6 +264,7 @@ AutoHopBtn.TextSize = 11
 local AutoChestBtn = Instance.new("TextButton")
 AutoChestBtn.Size = UDim2.new(1, -16, 0, 32)
 AutoChestBtn.Position = UDim2.new(0, 8, 0, 215)
+AutoChestBtn.ZIndex = 9
 AutoChestBtn.Parent = MainFrame
 AutoChestBtn.Font = Enum.Font.SourceSansBold
 AutoChestBtn.TextSize = 11
@@ -416,14 +431,14 @@ task.spawn(function()
     end
 end)
 
-AutoHopBtn.MouseButton1Click:Connect(function()
+AutoHopBtn.Activated:Connect(function()
     getgenv().KL_AutoHopRunning = not getgenv().KL_AutoHopRunning
     Settings.AutoHop = getgenv().KL_AutoHopRunning
     SaveSettings()
     UpdateButtons()
 end)
 
-AutoChestBtn.MouseButton1Click:Connect(function()
+AutoChestBtn.Activated:Connect(function()
     getgenv().KL_AutoChestRunning = not getgenv().KL_AutoChestRunning
     Settings.AutoChest = getgenv().KL_AutoChestRunning
     SaveSettings()
