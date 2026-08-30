@@ -1,5 +1,5 @@
 -- =================================================================
--- KING LEGACY - V5 PRO (FIX KẸT CAMERA SAU KHI PLAY & ORBIT RƯƠNG)
+-- KING LEGACY - V7 PRO (ÉP SPAWN NHÂN VẬT, FIX KẸT CAMERA & ORBIT RƯƠNG)
 -- =================================================================
 
 local Players = game:GetService("Players")
@@ -47,15 +47,27 @@ local IsTeleporting = false
 TeleportService.TeleportInitFailed:Connect(function(player, teleportResult, errorMessage)
     if getgenv().KL_AutoHopRunning then
         IsTeleporting = false
-        warn("Lỗi vào server (Full/Disconnect):", errorMessage, "- Đang tìm server mới...")
+        warn("Lỗi vào server:", errorMessage)
         task.wait(2)
     end
 end)
 
--- ================= 1. AUTO PLAY & FIX KẸT CAMERA SAU KHI PLAY =================
+-- ================= 1. AUTO PLAY & ÉP SPAWN NHÂN VẬT =================
 task.spawn(function()
+    local clickedPlay = false
     while task.wait(1) do
         pcall(function()
+            -- Nếu nhân vật đã xuất hiện và có thể điều khiển thì bỏ qua Auto Play
+            if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") and LocalPlayer.Character:FindFirstChildOfClass("Humanoid").Health > 0 then
+                clickedPlay = true
+                -- Ép camera bám sát nhân vật
+                if Camera.CameraSubject ~= LocalPlayer.Character:FindFirstChildOfClass("Humanoid") then
+                    Camera.CameraSubject = LocalPlayer.Character:FindFirstChildOfClass("Humanoid")
+                    Camera.CameraType = Enum.CameraType.Custom
+                end
+                return
+            end
+
             local playerGui = LocalPlayer:FindFirstChild("PlayerGui")
             if playerGui then
                 for _, gui in pairs(playerGui:GetDescendants()) do
@@ -63,12 +75,8 @@ task.spawn(function()
                         local text = gui:IsA("TextButton") and string.lower(gui.Text) or ""
                         local name = string.lower(gui.Name)
                         
-                        -- Quét nút Play/Start HOẶC các nút xác nhận chọn đảo/spawn sau khi chơi
                         if string.find(name, "play") or string.find(text, "play") or 
-                           string.find(name, "start") or string.find(text, "start") or
-                           string.find(name, "spawn") or string.find(text, "spawn") or
-                           string.find(name, "confirm") or string.find(text, "confirm") or
-                           string.find(name, "continue") or string.find(text, "continue") then
+                           string.find(name, "start") or string.find(text, "start") then
                             
                             if getconnections then
                                 local eventTypes = {"MouseButton1Click", "MouseButton1Down", "MouseButton1Up", "Activated", "TouchTap"}
@@ -90,17 +98,19 @@ task.spawn(function()
                                     VirtualInputManager:SendTouchEvent(0, 1, 0, cx, cy, game)
                                 end
                             end)
+                            
+                            clickedPlay = true
                         end
                     end
                 end
             end
             
-            -- Ép camera thoát chế độ nhìn toàn cảnh nếu nhân vật đã xuất hiện nhưng camera chưa bám theo
-            if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
-                if Camera.CameraSubject ~= LocalPlayer.Character:FindFirstChildOfClass("Humanoid") then
-                    Camera.CameraSubject = LocalPlayer.Character:FindFirstChildOfClass("Humanoid")
-                    Camera.CameraType = Enum.CameraType.Custom
-                end
+            -- Nếu đã bấm Play mà sau vài giây nhân vật vẫn chưa chịu ra map, ép gọi lệnh LoadCharacter
+            if clickedPlay and (not LocalPlayer.Character or not LocalPlayer.Character:FindFirstChild("HumanoidRootPart")) then
+                task.wait(3)
+                pcall(function()
+                    LocalPlayer:LoadCharacter()
+                end)
             end
         end)
     end
@@ -108,7 +118,7 @@ end)
 
 -- ================= GIAO DIỆN MENU =================
 local ScreenGui = Instance.new("ScreenGui")
-ScreenGui.Name = "KL_MobileMasterGui_V5"
+ScreenGui.Name = "KL_MobileMasterGui_V7"
 ScreenGui.Parent = CoreGui
 
 local ToggleBtn = Instance.new("TextButton")
@@ -134,7 +144,7 @@ ToggleBtn.MouseButton1Click:Connect(function() MainFrame.Visible = not MainFrame
 local Title = Instance.new("TextLabel")
 Title.Size = UDim2.new(1, 0, 0, 30)
 Title.BackgroundColor3 = Color3.fromRGB(30, 30, 42)
-Title.Text = "AUTO EVENT KL V5 (FIX CAMERA & ORBIT)"
+Title.Text = "AUTO EVENT KL V7 (FIX SPAWN & ORBIT)"
 Title.TextColor3 = Color3.fromRGB(0, 255, 180)
 Title.Font = Enum.Font.SourceSansBold
 Title.TextSize = 10
@@ -204,7 +214,7 @@ local function UpdateButtons()
 end
 UpdateButtons()
 
--- ================= 2. AUTO NHẶT RƯƠNG (ORBIT & THEO THỨ TỰ) =================
+-- ================= 2. AUTO NHẶT RƯƠNG (ORBIT) =================
 local function GetValidChests(hrpPosition)
     local chests = {}
     for _, obj in pairs(Workspace:GetDescendants()) do
@@ -239,7 +249,6 @@ local function GetValidChests(hrpPosition)
         end
     end
     
-    -- Sắp xếp thứ tự từ gần đến xa theo khoảng cách người chơi
     table.sort(chests, function(a, b)
         return (a.Position - hrpPosition).Magnitude < (b.Position - hrpPosition).Magnitude
     end)
@@ -259,7 +268,6 @@ task.spawn(function()
                 
                 local timeout = tick() + 5 
                 
-                -- Orbit liên tục cho đến khi rương biến mất khỏi map
                 while chestPart and chestPart.Parent and tick() < timeout and getgenv().KL_AutoChestRunning do
                     StatusLabel.Text = "Trạng thái: Đang nhặt rương (Orbit)..."
                     StatusLabel.TextColor3 = Color3.fromRGB(0, 255, 100)
