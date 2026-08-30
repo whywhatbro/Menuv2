@@ -1,5 +1,5 @@
 -- =================================================================
--- KING LEGACY - V8 PRO (DÙNG GUI SERVICE HIỆN KHUNG XANH & ÉP PLAY)
+-- KING LEGACY - V9 PRO (QUÉT LIÊN TỤC CHỜ NÚT PLAY & KHUNG XANH)
 -- =================================================================
 
 local Players = game:GetService("Players")
@@ -48,16 +48,16 @@ local IsTeleporting = false
 TeleportService.TeleportInitFailed:Connect(function(player, teleportResult, errorMessage)
     if getgenv().KL_AutoHopRunning then
         IsTeleporting = false
-        warn("Lỗi vào server:", errorMessage)
         task.wait(2)
     end
 end)
 
--- ================= 1. AUTO PLAY BẰNG KHUNG CHỌN (GUI SERVICE) =================
+-- ================= 1. AUTO PLAY LIÊN TỤC CHỜ NÚT XUẤT HIỆN =================
 task.spawn(function()
-    while task.wait(1) do
+    while true do
+        task.wait(0.5) -- Quét nhanh mỗi nửa giây để bắt nút Play ngay khi nó hiện lên
         pcall(function()
-            -- Nếu nhân vật đã xuất hiện và sống khỏe mạnh thì thoát vòng lặp bấm Play
+            -- Nếu nhân vật đã có trên map thì không cần bấm Play nữa
             if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") and LocalPlayer.Character:FindFirstChildOfClass("Humanoid").Health > 0 then
                 if Camera.CameraSubject ~= LocalPlayer.Character:FindFirstChildOfClass("Humanoid") then
                     Camera.CameraSubject = LocalPlayer.Character:FindFirstChildOfClass("Humanoid")
@@ -76,18 +76,17 @@ task.spawn(function()
                         if string.find(name, "play") or string.find(text, "play") or 
                            string.find(name, "start") or string.find(text, "start") then
                             
-                            -- Ép Roblox chọn nút này (Hiển thị khung viền màu xanh da trời giống bàn phím/tay cầm)
+                            -- Đưa khung xanh viền vào nút
                             GuiService.SelectedObject = gui
-                            task.wait(0.2)
+                            task.wait(0.1)
                             
-                            -- Kích hoạt nút bằng cách giả lập phím Enter (Return) trên bàn phím
+                            -- Giả lập phím Enter để kích hoạt nút đang được chọn
                             if VirtualInputManager then
                                 VirtualInputManager:SendKeyEvent(true, Enum.KeyCode.Return, false, game)
                                 task.wait(0.05)
                                 VirtualInputManager:SendKeyEvent(false, Enum.KeyCode.Return, false, game)
                             end
                             
-                            -- Kết hợp thêm các phương pháp kích hoạt khác để chắc chắn 100% ăn lệnh
                             pcall(function() gui:Activate() end)
                             if getconnections then
                                 for _, conn in pairs(getconnections(gui.MouseButton1Click)) do conn:Fire() end
@@ -96,19 +95,13 @@ task.spawn(function()
                     end
                 end
             end
-            
-            -- Nếu sau một lúc vẫn kẹt, ép lệnh load nhân vật
-            if not LocalPlayer.Character or not LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
-                task.wait(2)
-                pcall(function() LocalPlayer:LoadCharacter() end)
-            end
         end)
     end
 end)
 
 -- ================= GIAO DIỆN MENU =================
 local ScreenGui = Instance.new("ScreenGui")
-ScreenGui.Name = "KL_MobileMasterGui_V8"
+ScreenGui.Name = "KL_MobileMasterGui_V9"
 ScreenGui.Parent = CoreGui
 
 local ToggleBtn = Instance.new("TextButton")
@@ -134,7 +127,7 @@ ToggleBtn.MouseButton1Click:Connect(function() MainFrame.Visible = not MainFrame
 local Title = Instance.new("TextLabel")
 Title.Size = UDim2.new(1, 0, 0, 30)
 Title.BackgroundColor3 = Color3.fromRGB(30, 30, 42)
-Title.Text = "AUTO EVENT KL V8 (GUI SERVICE FOCUS)"
+Title.Text = "AUTO EVENT KL V9 (DELAY PLAY CHECK)"
 Title.TextColor3 = Color3.fromRGB(0, 255, 180)
 Title.Font = Enum.Font.SourceSansBold
 Title.TextSize = 10
