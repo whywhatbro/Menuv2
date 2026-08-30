@@ -1,5 +1,5 @@
 -- =================================================================
--- KING LEGACY - CHỈ NHẶT RƯƠNG EVENT (SEA KING, GHOST SHIP, HYDRA)
+-- KING LEGACY - CHỈ NHẶT RƯƠNG EVENT (ĐÃ LOẠI BỎ SKULL PIRATE)
 -- =================================================================
 
 local Players = game:GetService("Players")
@@ -15,7 +15,7 @@ local AutoChestRunning = false
 local HopDelay = 15
 
 local ScreenGui = Instance.new("ScreenGui")
-ScreenGui.Name = "KL_OnlyEventChest"
+ScreenGui.Name = "KL_OnlyEventChestClean"
 ScreenGui.Parent = CoreGui
 
 local ToggleBtn = Instance.new("TextButton")
@@ -43,7 +43,7 @@ end)
 local Title = Instance.new("TextLabel")
 Title.Size = UDim2.new(1, 0, 0, 30)
 Title.BackgroundColor3 = Color3.fromRGB(30, 30, 42)
-Title.Text = "AUTO RƯƠNG EVENT (SEA KING / GHOST / HYDRA)"
+Title.Text = "AUTO RƯƠNG EVENT (FIX LỖI SKULL PIRATE)"
 Title.TextColor3 = Color3.fromRGB(0, 255, 180)
 Title.Font = Enum.Font.SourceSansBold
 Title.TextSize = 9
@@ -114,7 +114,7 @@ local UIList = Instance.new("UIListLayout")
 UIList.Parent = Scroll
 UIList.Padding = UDim.new(0, 4)
 
--- Logic mới: Chỉ nhận diện và nhặt rương khi tên hoặc thư mục chứa từ khóa Sea King, Ghost Ship, hoặc Hydra
+-- Bộ lọc sạch sâu: Loại bỏ hoàn toàn Skull Pirate và chỉ bắt rương Sea King, Ghost Ship, Hydra chuẩn
 task.spawn(function()
     while true do
         task.wait(0.4)
@@ -127,7 +127,7 @@ task.spawn(function()
                 local name = obj.Name:lower()
                 local parentName = obj.Parent and obj.Parent.Name:lower() or ""
                 
-                -- Tạo một chuỗi kiểm tra tổng hợp toàn bộ tên vật thể và thư mục chứa nó
+                -- Gom toàn bộ tên đường dẫn tổ tiên để kiểm tra
                 local fullName = name .. " " .. parentName
                 local currentParent = obj.Parent
                 while currentParent and currentParent ~= Workspace do
@@ -135,29 +135,31 @@ task.spawn(function()
                     currentParent = currentParent.Parent
                 end
                 
-                -- Kiểm tra xem đối tượng có phải là rương VÀ thuộc về Sea King, Ghost Ship hoặc Hydra không
-                local isChest = name:find("chest") or name:find("reward") or obj:IsA("BasePart") or obj:IsA("Model")
-                local isEventTarget = fullName:find("seaking") 
-                    or fullName:find("sea king") 
-                    or fullName:find("ghost") 
-                    or fullName:find("ship") 
-                    or fullName:find("hydra") 
-                    or fullName:find("boss")
-                    or fullName:find("skull")
+                -- CHẶN TRỰC TIẾP QUÁI VÀ CÁC THỰC THỂ KHÔNG PHẢI RƯƠNG EVENT
+                local isSkullPirate = fullName:find("skull pirate") or fullName:find("skullpirate") or fullName:find("bandit") or fullName:find("marine") or fullName:find("soldier")
                 
-                -- Chỉ thực hiện khi đúng là rương sự kiện biển
-                if isChest and isEventTarget then
-                    local part = nil
-                    if obj:IsA("Model") then
-                        part = obj.PrimaryPart or obj:FindFirstChildWhichIsA("BasePart")
-                    elseif obj:IsA("BasePart") then
-                        part = obj
-                    end
+                if not isSkullPirate then
+                    -- Kiểm tra xem có phải rương sự kiện biển không
+                    local isChest = name:find("chest") or name:find("reward")
+                    local isEventTarget = fullName:find("seaking") 
+                        or fullName:find("sea king") 
+                        or fullName:find("ghost") 
+                        or fullName:find("ship") 
+                        or fullName:find("hydra")
                     
-                    if part then
-                        local pos = part.Position
-                        hrp.CFrame = CFrame.new(pos + Vector3.new(0, 3, 0))
-                        task.wait(0.25)
+                    if isChest and isEventTarget then
+                        local part = nil
+                        if obj:IsA("Model") then
+                            part = obj.PrimaryPart or obj:FindFirstChildWhichIsA("BasePart")
+                        elseif obj:IsA("BasePart") then
+                            part = obj
+                        end
+                        
+                        if part then
+                            local pos = part.Position
+                            hrp.CFrame = CFrame.new(pos + Vector3.new(0, 3, 0))
+                            task.wait(0.25)
+                        end
                     end
                 end
             end
