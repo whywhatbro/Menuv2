@@ -1,5 +1,5 @@
 -- =================================================================
--- KING LEGACY - V10 PRO (QUÉT SÂU + NÚT BẤM THỦ CÔNG TRỰC TIẾP)
+-- KING LEGACY - V12 PRO (TÙY CHỈNH TỌA ĐỘ NÚT PLAY + ẨN MENU BAN ĐẦU)
 -- =================================================================
 
 local Players = game:GetService("Players")
@@ -11,11 +11,18 @@ local Workspace = game:GetService("Workspace")
 local VirtualInputManager = game:GetService("VirtualInputManager")
 local GuiService = game:GetService("GuiService")
 local RunService = game:GetService("RunService")
+local UserInputService = game:GetService("UserInputService")
 local Camera = Workspace.CurrentCamera
 
 -- ================= HỆ THỐNG LƯU CÀI ĐẶT =================
-local SettingsFile = "KingLegacy_AutoChest_Settings.json"
-local Settings = { AutoHop = false, AutoChest = false, HopDelay = 15 }
+local SettingsFile = "KingLegacy_AutoChest_Settings_V12.json"
+local Settings = { 
+    AutoHop = false, 
+    AutoChest = false, 
+    HopDelay = 15,
+    PlayX = 0,
+    PlayY = 0
+}
 
 local function SaveSettings()
     pcall(function()
@@ -32,6 +39,8 @@ local function LoadSettings()
                 Settings.AutoHop = decoded.AutoHop or false
                 Settings.AutoChest = decoded.AutoChest or false
                 Settings.HopDelay = decoded.HopDelay or 15
+                Settings.PlayX = decoded.PlayX or 0
+                Settings.PlayY = decoded.PlayY or 0
             end
         end
     end)
@@ -44,6 +53,7 @@ getgenv().KL_HopDelay = Settings.HopDelay
 
 local VisitedServers = {}
 local IsTeleporting = false
+local isSettingCoord = false
 
 TeleportService.TeleportInitFailed:Connect(function(player, teleportResult, errorMessage)
     if getgenv().KL_AutoHopRunning then
@@ -52,79 +62,97 @@ TeleportService.TeleportInitFailed:Connect(function(player, teleportResult, erro
     end
 end)
 
--- ================= HÀM KÍCH HOẠT NÚT PLAY THÔNG MINH =================
-local function TriggerPlayButton()
-    local successCount = 0
-    local playerGui = LocalPlayer:FindFirstChild("PlayerGui")
-    if playerGui then
-        for _, gui in pairs(playerGui:GetDescendants()) do
-            if (gui:IsA("TextButton") or gui:IsA("ImageButton")) and gui.Visible and gui.AbsolutePosition.X > 0 then
-                local matched = false
-                local name = string.lower(gui.Name)
-                
-                -- Kiểm tra tên nút hoặc text trực tiếp
-                if string.find(name, "play") or string.find(name, "start") or string.find(name, "pirate") or string.find(name, "marine") then
-                    matched = true
-                else
-                    -- Quét sâu vào các chữ cái (TextLabel/TextBox) bên trong nút đó
-                    for _, child in pairs(gui:GetDescendants()) do
-                        if child:IsA("TextLabel") or child:IsA("TextBox") then
-                            local cText = string.lower(child.Text)
-                            if string.find(cText, "play") or string.find(cText, "start") or string.find(cText, "pirate") or string.find(cText, "marine") then
-                                matched = true
-                                break
+-- ================= HÀM KÍCH HOẠT NÚT PLAY (HỖ TRỢ TỌA ĐỘ CÁ NHÂN HÓA) =================
+local function ExecutePlayClick()
+    local success = false
+    
+    -- Nếu người dùng đã tự lưu tọa độ, ưu tiên dùng tọa độ cá nhân hóa (Click đa điểm nếu kẹt)
+    if Settings.PlayX > 0 and Settings.PlayY > 0 then
+        pcall(function()
+            if VirtualInputManager and VirtualInputManager.SendTouchEvent then
+                -- Nhấn nhiều lần liên tiếp để đảm bảo nhận diện
+                for i = 1, 3 do
+                    VirtualInputManager:SendTouchEvent(0, 0, 0, Settings.PlayX, Settings.PlayY, game)
+                    task.wait(0.03)
+                    VirtualInputManager:SendTouchEvent(0, 1, 0, Settings.PlayX, Settings.PlayY, game)
+                    task.wait(0.05)
+                end
+                success = true
+            end
+        end)
+    else
+        -- Fallback quét tự động cũ nếu chưa đặt tọa độ
+        local playerGui = LocalPlayer:FindFirstChild("PlayerGui")
+        if playerGui then
+            for _, gui in pairs(playerGui:GetDescendants()) do
+                if (gui:IsA("TextButton") or gui:IsA("ImageButton")) and gui.Visible and gui.AbsolutePosition.X > 0 then
+                    local matched = false
+                    local name = string.lower(gui.Name)
+                    if string.find(name, "play") or string.find(name, "start") or string.find(name, "pirate") or string.find(name, "marine") then
+                        matched = true
+                    else
+                        for _, child in pairs(gui:GetDescendants()) do
+                            if child:IsA("TextLabel") or child:IsA("TextBox") then
+                                local cText = string.lower(child.Text)
+                                if string.find(cText, "play") or string.find(cText, "start") or string.find(cText, "pirate") or string.find(cText, "marine") then
+                                    matched = true
+                                    break
+                                end
                             end
                         end
                     end
-                end
-                
-                if matched then
-                    successCount = successCount + 1
-                    pcall(function() GuiService.SelectedObject = gui end)
-                    task.wait(0.02)
-                    pcall(function() gui:Activate() end)
-                    pcall(function()
-                        if getconnections then
-                            for _, conn in pairs(getconnections(gui.MouseButton1Click)) do conn:Fire() end
-                            for _, conn in pairs(getconnections(gui.Activated)) do conn:Fire() end
-                        end
-                    end)
-                    pcall(function()
-                        if VirtualInputManager and VirtualInputManager.SendTouchEvent then
-                            local cx = gui.AbsolutePosition.X + (gui.AbsoluteSize.X / 2)
-                            local cy = gui.AbsolutePosition.Y + (gui.AbsoluteSize.Y / 2)
-                            VirtualInputManager:SendTouchEvent(0, 0, 0, cx, cy, game)
-                            task.wait(0.02)
-                            VirtualInputManager:SendTouchEvent(0, 1, 0, cx, cy, game)
-                        end
-                    end)
+                    if matched then
+                        success = true
+                        pcall(function() gui:Activate() end)
+                        pcall(function()
+                            if getconnections then
+                                for _, conn in pairs(getconnections(gui.MouseButton1Click)) do conn:Fire() end
+                                for _, conn in pairs(getconnections(gui.Activated)) do conn:Fire() end
+                            end
+                        end)
+                    end
                 end
             end
         end
     end
-    return successCount
+    return success
 end
 
--- Tự động quét liên tục ngầm
+-- Kiểm tra xem có đang bị kẹt ở sảnh / màn hình chờ không
+local function IsStuckAtLobby()
+    local char = LocalPlayer.Character
+    local humanoid = char and char:FindFirstChildOfClass("Humanoid")
+    if not char or not humanoid or humanoid.Health <= 0 then
+        return true
+    end
+    return false
+end
+
+-- Vòng lặp ngầm kiểm tra và tự động bấm nút Play nếu kẹt
 task.spawn(function()
     while true do
-        task.wait(0.5)
+        task.wait(0.8)
         pcall(function()
-            if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") and LocalPlayer.Character:FindFirstChildOfClass("Humanoid").Health > 0 then
-                if Camera.CameraSubject ~= LocalPlayer.Character:FindFirstChildOfClass("Humanoid") then
-                    Camera.CameraSubject = LocalPlayer.Character:FindFirstChildOfClass("Humanoid")
+            local char = LocalPlayer.Character
+            local humanoid = char and char:FindFirstChildOfClass("Humanoid")
+            local hrp = char and char:FindFirstChild("HumanoidRootPart")
+            
+            if char and humanoid and hrp and humanoid.Health > 0 then
+                if Camera.CameraSubject ~= humanoid or Camera.CameraType ~= Enum.CameraType.Custom then
                     Camera.CameraType = Enum.CameraType.Custom
+                    Camera.CameraSubject = humanoid
                 end
-                return
+            else
+                -- Kẹt sảnh -> Tiến hành gọi lệnh click Play
+                ExecutePlayClick()
             end
-            TriggerPlayButton()
         end)
     end
 end)
 
--- ================= GIAO DIỆN MENU =================
+-- ================= GIAO DIỆN MENU (ẨN SẴN BAN ĐẦU) =================
 local ScreenGui = Instance.new("ScreenGui")
-ScreenGui.Name = "KL_MobileMasterGui_V10"
+ScreenGui.Name = "KL_MobileMasterGui_V12"
 ScreenGui.Parent = CoreGui
 
 local ToggleBtn = Instance.new("TextButton")
@@ -138,11 +166,12 @@ ToggleBtn.TextSize = 11
 ToggleBtn.Parent = ScreenGui
 
 local MainFrame = Instance.new("Frame")
-MainFrame.Size = UDim2.new(0, 360, 0, 440)
-MainFrame.Position = UDim2.new(0.5, -180, 0.5, -220)
+MainFrame.Size = UDim2.new(0, 360, 0, 470)
+MainFrame.Position = UDim2.new(0.5, -180, 0.5, -235)
 MainFrame.BackgroundColor3 = Color3.fromRGB(20, 20, 28)
 MainFrame.Active = true
 MainFrame.Draggable = true
+MainFrame.Visible = false -- KHỞI ĐỘNG ẨN GỌN GÀNG TRONG NÚT BẬT TẮT
 MainFrame.Parent = ScreenGui
 
 ToggleBtn.MouseButton1Click:Connect(function() MainFrame.Visible = not MainFrame.Visible end)
@@ -150,7 +179,7 @@ ToggleBtn.MouseButton1Click:Connect(function() MainFrame.Visible = not MainFrame
 local Title = Instance.new("TextLabel")
 Title.Size = UDim2.new(1, 0, 0, 30)
 Title.BackgroundColor3 = Color3.fromRGB(30, 30, 42)
-Title.Text = "AUTO EVENT KL V10 (MANUAL PLAY)"
+Title.Text = "AUTO EVENT KL V12 (CUSTOM PLAY COORD)"
 Title.TextColor3 = Color3.fromRGB(0, 255, 180)
 Title.Font = Enum.Font.SourceSansBold
 Title.TextSize = 10
@@ -166,31 +195,48 @@ StatusLabel.Font = Enum.Font.SourceSans
 StatusLabel.TextSize = 11
 StatusLabel.Parent = MainFrame
 
--- NÚT BẤM PLAY THỦ CÔNG
-local ForcePlayBtn = Instance.new("TextButton")
-ForcePlayBtn.Size = UDim2.new(1, -16, 0, 35)
-ForcePlayBtn.Position = UDim2.new(0, 8, 0, 68)
-ForcePlayBtn.BackgroundColor3 = Color3.fromRGB(220, 120, 0)
-ForcePlayBtn.Text = "👉 BẤM NÚT PLAY NGAY (NHẤN VÀO ĐÂY)"
-ForcePlayBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
-ForcePlayBtn.Font = Enum.Font.SourceSansBold
-ForcePlayBtn.TextSize = 11
-ForcePlayBtn.Parent = MainFrame
+-- NÚT CÀI ĐẶT TỌA ĐỘ NÚT PLAY THỦ CÔNG
+local SetCoordBtn = Instance.new("TextButton")
+SetCoordBtn.Size = UDim2.new(1, -16, 0, 35)
+SetCoordBtn.Position = UDim2.new(0, 8, 0, 68)
+SetCoordBtn.BackgroundColor3 = Color3.fromRGB(220, 100, 0)
+SetCoordBtn.Text = "📍 ĐẶT VỊ TRÍ NÚT PLAY (BẤM VÀO ĐÂY RỒI CHẠM NÚT PLAY)"
+SetCoordBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+SetCoordBtn.Font = Enum.Font.SourceSansBold
+SetCoordBtn.TextSize = 10
+SetCoordBtn.Parent = MainFrame
 
-ForcePlayBtn.MouseButton1Click:Connect(function()
-    local count = TriggerPlayButton()
-    if count > 0 then
-        StatusLabel.Text = "Trạng thái: Đã gửi lệnh bấm Play ("..count..")!"
+local CoordInfoLabel = Instance.new("TextLabel")
+CoordInfoLabel.Size = UDim2.new(1, -16, 0, 20)
+CoordInfoLabel.Position = UDim2.new(0, 8, 0, 105)
+CoordInfoLabel.BackgroundTransparency = 1
+CoordInfoLabel.Text = (Settings.PlayX > 0 and "Đã lưu tọa độ: X="..math.floor(Settings.PlayX).." Y="..math.floor(Settings.PlayY)) or "Tọa độ nút Play: Chưa thiết lập (Đang dùng quét tự động)"
+CoordInfoLabel.TextColor3 = Color3.fromRGB(150, 255, 150)
+CoordInfoLabel.Font = Enum.Font.SourceSans
+CoordInfoLabel.TextSize = 10
+CoordInfoLabel.Parent = MainFrame
+
+SetCoordBtn.MouseButton1Click:Connect(function()
+    isSettingCoord = true
+    StatusLabel.Text = "Trạng thái: HÃY CHẠM VÀO NÚT PLAY TRÊN MÀN HÌNH NGAY!"
+    StatusLabel.TextColor3 = Color3.fromRGB(255, 165, 0)
+end)
+
+UserInputService.InputBegan:Connect(function(input)
+    if isSettingCoord and (input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch) then
+        Settings.PlayX = input.Position.X
+        Settings.PlayY = input.Position.Y
+        isSettingCoord = false
+        SaveSettings()
+        StatusLabel.Text = "Trạng thái: Đã lưu vị trí nút Play thành công!"
         StatusLabel.TextColor3 = Color3.fromRGB(0, 255, 100)
-    else
-        StatusLabel.Text = "Trạng thái: Không tìm thấy nút Play trên màn hình!"
-        StatusLabel.TextColor3 = Color3.fromRGB(255, 100, 100)
+        CoordInfoLabel.Text = "Đã lưu tọa độ: X="..math.floor(Settings.PlayX).." Y="..math.floor(Settings.PlayY)
     end
 end)
 
 local TimeTextBox = Instance.new("TextBox")
 TimeTextBox.Size = UDim2.new(0.35, 0, 0, 25)
-TimeTextBox.Position = UDim2.new(0.62, 0, 0, 110)
+TimeTextBox.Position = UDim2.new(0.62, 0, 0, 135)
 TimeTextBox.BackgroundColor3 = Color3.fromRGB(45, 45, 65)
 TimeTextBox.Text = tostring(getgenv().KL_HopDelay)
 TimeTextBox.TextColor3 = Color3.fromRGB(0, 255, 180)
@@ -200,7 +246,7 @@ TimeTextBox.Parent = MainFrame
 
 local TimeLabel = Instance.new("TextLabel")
 TimeLabel.Size = UDim2.new(0.6, 0, 0, 25)
-TimeLabel.Position = UDim2.new(0, 8, 0, 110)
+TimeLabel.Position = UDim2.new(0, 8, 0, 135)
 TimeLabel.BackgroundTransparency = 1
 TimeLabel.Text = " Thời gian ở SV (giây):"
 TimeLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
@@ -221,14 +267,14 @@ end)
 
 local AutoHopBtn = Instance.new("TextButton")
 AutoHopBtn.Size = UDim2.new(1, -16, 0, 32)
-AutoHopBtn.Position = UDim2.new(0, 8, 0, 146)
+AutoHopBtn.Position = UDim2.new(0, 8, 0, 170)
 AutoHopBtn.Parent = MainFrame
 AutoHopBtn.Font = Enum.Font.SourceSansBold
 AutoHopBtn.TextSize = 11
 
 local AutoChestBtn = Instance.new("TextButton")
 AutoChestBtn.Size = UDim2.new(1, -16, 0, 32)
-AutoChestBtn.Position = UDim2.new(0, 8, 0, 184)
+AutoChestBtn.Position = UDim2.new(0, 8, 0, 210)
 AutoChestBtn.Parent = MainFrame
 AutoChestBtn.Font = Enum.Font.SourceSansBold
 AutoChestBtn.TextSize = 11
