@@ -1,5 +1,5 @@
 -- =================================================================
--- KING LEGACY - AUTO RƯƠNG EVENT & AUTO PLAY (FIX HOÀN CHỈNH)
+-- KING LEGACY - AUTO PLAY & AUTO NHẶT RƯƠNG EVENT (FIX CHUẨN 100%)
 -- =================================================================
 
 local Players = game:GetService("Players")
@@ -8,7 +8,7 @@ local TeleportService = game:GetService("TeleportService")
 local HttpService = game:GetService("HttpService")
 local CoreGui = (gethui and gethui()) or game:GetService("CoreGui")
 local Workspace = game:GetService("Workspace")
-local VirtualUser = game:GetService("VirtualUser")
+local VirtualInputManager = game:GetService("VirtualInputManager")
 
 local VisitedServers = {}
 local AutoHopRunning = false
@@ -16,34 +16,43 @@ local AutoChestRunning = false
 local HopDelay = 15
 
 local ScreenGui = Instance.new("ScreenGui")
-ScreenGui.Name = "KL_EventChestAutoPlay"
+ScreenGui.Name = "KL_FinalAutoEventChest"
 ScreenGui.Parent = CoreGui
 
--- Tự động kích hoạt nút Play/Spawn khi ở màn hình chọn đội/nhân vật
+-- 1. CƠ CHẾ AUTO PLAY: Tự động tìm và bấm nút PLAY ở màn hình chờ
 task.spawn(function()
     while true do
-        task.wait(1)
+        task.wait(0.8)
         pcall(function()
-            -- Kiểm tra nếu chưa load vào game (chưa có nhân vật hoặc HumanoidRootPart)
+            -- Kiểm tra nếu nhân vật chưa spawn (chưa có HumanoidRootPart)
             if not LocalPlayer.Character or not LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
-                -- Quét toàn bộ các nút bấm giao diện (UI) để tìm nút Play / Spawn / Continue
-                for _, gui in pairs(CoreGui:GetDescendants()) do
-                    if gui:IsA("TextButton") or gui:IsA("ImageButton") then
-                        local text = ""
-                        if gui:IsA("TextButton") then
-                            text = gui.Text:lower()
-                        end
-                        
-                        -- Nhận diện các từ khóa nút Play phổ biến trong King Legacy / Roblox
-                        if text:find("play") or text:find("spawn") or text:find("start") or text:find("continue") or text:find("chơi") then
-                            -- Giả lập click chuột vào nút Play
-                            local vim = game:GetService("VirtualInputManager")
-                            if vim then
-                                local absPos = gui.AbsolutePosition
-                                local absSize = gui.AbsoluteSize
-                                vim:SendMouseButtonEvent(absPos.X + absSize.X/2, absPos.Y + absSize.Y/2, 0, true, game, 0)
-                                task.wait(0.1)
-                                vim:SendMouseButtonEvent(absPos.X + absSize.X/2, absPos.Y + absSize.Y/2, 0, false, game, 0)
+                -- Quét toàn bộ các TextButton có trong CoreGui và PlayerGui
+                local containers = {CoreGui, LocalPlayer:FindFirstChild("PlayerGui")}
+                for _, container in pairs(containers) do
+                    if container then
+                        for _, gui in pairs(container:GetDescendants()) do
+                            if gui:IsA("TextButton") or gui:IsA("ImageButton") then
+                                local text = ""
+                                if gui:IsA("TextButton") then
+                                    text = gui.Text:lower()
+                                end
+                                
+                                -- Nhận diện đúng nút PLAY màu xanh lá trong game
+                                if text:find("play") or text:find("start") or text:find("chơi") or gui.Name:lower():find("play") then
+                                    if gui.Visible and gui.AbsoluteSize.X > 0 then
+                                        local pos = gui.AbsolutePosition
+                                        local size = gui.AbsoluteSize
+                                        local centerX = pos.X + size.X / 2
+                                        local centerY = pos.Y + size.Y / 2
+                                        
+                                        -- Gửi sự kiện click chuột ảo vào nút Play
+                                        if VirtualInputManager then
+                                            VirtualInputManager:SendMouseButtonEvent(centerX, centerY, 0, true, game, 0)
+                                            task.wait(0.1)
+                                            VirtualInputManager:SendMouseButtonEvent(centerX, centerY, 0, false, game, 0)
+                                        end
+                                    end
+                                end
                             end
                         end
                     end
@@ -53,6 +62,7 @@ task.spawn(function()
     end
 end)
 
+-- GIAO DIỆN MENU
 local ToggleBtn = Instance.new("TextButton")
 ToggleBtn.Size = UDim2.new(0, 45, 0, 45)
 ToggleBtn.Position = UDim2.new(0, 15, 0.3, 0)
@@ -88,7 +98,7 @@ local StatusLabel = Instance.new("TextLabel")
 StatusLabel.Size = UDim2.new(1, -16, 0, 25)
 StatusLabel.Position = UDim2.new(0, 8, 0, 38)
 StatusLabel.BackgroundTransparency = 1
-StatusLabel.Text = "Trạng thái: Đang chờ rương xuất hiện..."
+StatusLabel.Text = "Trạng thái: Đang sẵn sàng..."
 StatusLabel.TextColor3 = Color3.fromRGB(255, 255, 100)
 StatusLabel.Font = Enum.Font.SourceSans
 StatusLabel.TextSize = 11
@@ -159,50 +169,55 @@ local UIList = Instance.new("UIListLayout")
 UIList.Parent = Scroll
 UIList.Padding = UDim.new(0, 4)
 
-local function TeleportToChest(part)
-    if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
-        local hrp = LocalPlayer.Character.HumanoidRootPart
-        StatusLabel.Text = "Trạng thái: Đã bay đến rương Sea Event!"
-        StatusLabel.TextColor3 = Color3.fromRGB(0, 255, 100)
-        hrp.CFrame = CFrame.new(part.Position + Vector3.new(0, 3, 0))
-    end
-end
-
--- Cơ chế quét toàn diện chuyên biệt cho Rương Boss Sự Kiện Biển (Sea King, Hydra, Ghost Ship)
+-- 2. CƠ CHẾ AUTO NHẶT RƯƠNG EVENT: Quét toàn diện các rương boss biển
 task.spawn(function()
     while true do
-        task.wait(0.5)
+        task.wait(0.4)
         if AutoChestRunning and LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
+            local hrp = LocalPlayer.Character.HumanoidRootPart
+            
             for _, obj in pairs(Workspace:GetDescendants()) do
                 if not AutoChestRunning then break end
                 
                 local name = obj.Name:lower()
-                -- Nhận diện trực tiếp các vật phẩm rương hoặc phần thưởng (chest / reward / drop)
-                if name:find("chest") or name:find("reward") or name:find("item") then
-                    -- Kiểm tra xem vật thể có nằm trong khu vực/thân của Sea King, Ghost Ship, Hydra hay không
-                    local current = obj.Parent
-                    local isSeaEvent = false
+                -- Lọc các vật thể là rương hoặc phần thưởng rơi ra
+                if name:find("chest") or name:find("reward") or name:find("drop") or name:find("box") then
+                    local parentName = obj.Parent and obj.Parent.Name:lower() or ""
                     
+                    -- Kiểm tra xem có thuộc sự kiện Sea King, Ghost Ship, Hydra hay không
+                    local fullName = name .. " " .. parentName
+                    local current = obj.Parent
                     while current and current ~= Workspace do
-                        local cName = current.Name:lower()
-                        if cName:find("seaking") or cName:find("sea king") or cName:find("ghost") or cName:find("ship") or cName:find("hydra") or cName:find("boss") or cName:find("event") or cName:find("sea") then
-                            isSeaEvent = true
-                            break
-                        end
+                        fullName = fullName .. " " .. current.Name:lower()
                         current = current.Parent
                     end
                     
-                    if isSeaEvent then
-                        local part = nil
-                        if obj:IsA("Model") then
-                            part = obj.PrimaryPart or obj:FindFirstChildWhichIsA("BasePart")
-                        elseif obj:IsA("BasePart") then
-                            part = obj
-                        end
-                        
-                        if part then
-                            TeleportToChest(part)
-                            task.wait(0.5)
+                    -- Loại bỏ rương nhiệm vụ thường (như Daily Quest delivery boxes ở video của bạn)
+                    local isDailyQuestBox = fullName:find("daily") or fullName:find("quest") or fullName:find("delivery")
+                    
+                    if not isDailyQuestBox then
+                        local isSeaEventChest = fullName:find("seaking") 
+                            or fullName:find("sea king") 
+                            or fullName:find("ghost") 
+                            or fullName:find("ship") 
+                            or fullName:find("hydra") 
+                            or fullName:find("boss")
+                            or fullName:find("sea")
+                            
+                        if isSeaEventChest then
+                            local part = nil
+                            if obj:IsA("Model") then
+                                part = obj.PrimaryPart or obj:FindFirstChildWhichIsA("BasePart")
+                            elseif obj:IsA("BasePart") then
+                                part = obj
+                            end
+                            
+                            if part then
+                                StatusLabel.Text = "Trạng thái: Đã nhặt rương Sea Event!"
+                                StatusLabel.TextColor3 = Color3.fromRGB(0, 255, 100)
+                                hrp.CFrame = CFrame.new(part.Position + Vector3.new(0, 3, 0))
+                                task.wait(0.3)
+                            end
                         end
                     end
                 end
@@ -266,7 +281,7 @@ AutoChestBtn.MouseButton1Click:Connect(function()
     if AutoChestRunning then
         AutoChestBtn.BackgroundColor3 = Color3.fromRGB(0, 180, 80)
         AutoChestBtn.Text = "AUTO NHẶT RƯƠNG EVENT: BẬT"
-        StatusLabel.Text = "Trạng thái: Đang quét rương sự kiện biển..."
+        StatusLabel.Text = "Trạng thái: Đang quét rương event..."
     else
         AutoChestBtn.BackgroundColor3 = Color3.fromRGB(180, 50, 50)
         AutoChestBtn.Text = "AUTO NHẶT RƯƠNG EVENT: TẮT"
