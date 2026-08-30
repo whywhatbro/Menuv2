@@ -1,5 +1,5 @@
 -- =================================================================
--- KING LEGACY - SỬA LỖI AUTO NHẶT RƯƠNG (CHỈ NHẶT ĐÚNG RƯƠNG)
+-- KING LEGACY - LỌC CHUẨN RƯƠNG BÁU VẬT (BỎ QUA GACHA & NHIỆM VỤ)
 -- =================================================================
 
 local Players = game:GetService("Players")
@@ -15,7 +15,7 @@ local AutoChestRunning = false
 local HopDelay = 15
 
 local ScreenGui = Instance.new("ScreenGui")
-ScreenGui.Name = "KL_ChestHopFixed"
+ScreenGui.Name = "KL_ChestHopClean"
 ScreenGui.Parent = CoreGui
 
 local ToggleBtn = Instance.new("TextButton")
@@ -43,10 +43,10 @@ end)
 local Title = Instance.new("TextLabel")
 Title.Size = UDim2.new(1, 0, 0, 30)
 Title.BackgroundColor3 = Color3.fromRGB(30, 30, 42)
-Title.Text = "AUTO RƯƠNG CHUẨN (ĐÃ FIX LỖI BOSS)"
+Title.Text = "AUTO RƯƠNG CLEAN (BỎ GACHA & NHIỆM VỤ)"
 Title.TextColor3 = Color3.fromRGB(0, 255, 180)
 Title.Font = Enum.Font.SourceSansBold
-Title.TextSize = 12
+Title.TextSize = 11
 Title.Parent = MainFrame
 
 local TimeBoxContainer = Instance.new("Frame")
@@ -114,7 +114,7 @@ local UIList = Instance.new("UIListLayout")
 UIList.Parent = Scroll
 UIList.Padding = UDim.new(0, 4)
 
--- Bộ lọc rương chuẩn (Chỉ nhận diện rương thật, loại bỏ hoàn toàn Boss)
+-- Bộ lọc loại bỏ hoàn toàn Gacha trái cây và Thùng hàng nhiệm vụ
 task.spawn(function()
     while true do
         task.wait(0.4)
@@ -125,13 +125,20 @@ task.spawn(function()
                 if not AutoChestRunning then break end
                 local name = obj.Name:lower()
                 
-                -- Kiểm tra nếu là rương thật và KHÔNG phải là Boss hoặc các thực thể sống/NPC
-                if (name:find("chest") or name == "box" or name:find("treasure")) 
-                    and not name:find("seaking") 
-                    and not name:find("hydra") 
-                    and not name:find("boss") 
-                    and not name:find("player") then
-                    
+                -- Điều kiện nhận diện rương báu vật thật và loại trừ các khu vực đặc biệt
+                local isChest = name:find("chest") or name == "box" or name:find("treasure")
+                local isExcluded = name:find("seaking") 
+                    or name:find("hydra") 
+                    or name:find("boss") 
+                    or name:find("player")
+                    or name:find("gacha")
+                    or name:find("random")
+                    or name:find("fruit")
+                    or name:find("quest")
+                    or name:find("delivery")
+                    or name:find("mission")
+                
+                if isChest and not isExcluded then
                     local part = nil
                     if obj:IsA("Model") then
                         part = obj.PrimaryPart or obj:FindFirstChildWhichIsA("BasePart")
@@ -140,7 +147,10 @@ task.spawn(function()
                     end
                     
                     if part then
-                        hrp.CFrame = part.CFrame + Vector3.new(0, 3, 0)
+                        -- Kiểm tra thêm vị trí đường đi để không đụng vào khu vực giao hàng hay gacha
+                        local pos = part.Position
+                        -- Thêm bước dịch chuyển chính xác đến rương
+                        hrp.CFrame = CFrame.new(pos + Vector3.new(0, 3, 0))
                         task.wait(0.25)
                     end
                 end
@@ -199,7 +209,7 @@ AutoHopBtn.MouseButton1Click:Connect(function()
     end
 end)
 
-AutoChestBtn.MouseButton1Click:Connect(function()
+AutoChestBtn.MouseButton1Click:Connect(function`()
     AutoChestRunning = not AutoChestRunning
     if AutoChestRunning then
         AutoChestBtn.BackgroundColor3 = Color3.fromRGB(0, 180, 80)
