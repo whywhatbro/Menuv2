@@ -1,5 +1,5 @@
 -- =================================================================
--- KING LEGACY - V3 PRO (FIX LỖI KẸT, ORBIT RƯƠNG, CHỐNG SERVER FULL)
+-- KING LEGACY - V4 PRO (FIX TRIỆT ĐỂ NÚT PLAY & ORBIT RƯƠNG)
 -- =================================================================
 
 local Players = game:GetService("Players")
@@ -43,7 +43,6 @@ getgenv().KL_HopDelay = Settings.HopDelay
 local VisitedServers = {}
 local IsTeleporting = false
 
--- CHỐNG KẸT SERVER FULL: Tự động bắt lỗi và nhảy server khác
 TeleportService.TeleportInitFailed:Connect(function(player, teleportResult, errorMessage)
     if getgenv().KL_AutoHopRunning then
         IsTeleporting = false
@@ -52,59 +51,60 @@ TeleportService.TeleportInitFailed:Connect(function(player, teleportResult, erro
     end
 end)
 
--- ================= 1. AUTO PLAY (FIX LỖI KẸT MÀN HÌNH) =================
-local playCooldown = false
+-- ================= 1. AUTO PLAY (FIX TRIỆT ĐỂ MOBILE) =================
 task.spawn(function()
-    while true do
-        task.wait(1)
-        if not playCooldown then
-            pcall(function()
-                local char = LocalPlayer.Character
-                -- Nếu nhân vật chưa thực sự load đầy đủ máu thịt
-                if not char or not char:FindFirstChild("UpperTorso") or not char:FindFirstChild("Head") then
-                    local playerGui = LocalPlayer:FindFirstChild("PlayerGui")
-                    if playerGui then
-                        for _, gui in pairs(playerGui:GetDescendants()) do
-                            if (gui:IsA("TextButton") or gui:IsA("ImageButton")) and gui.Visible then
-                                local text = gui:IsA("TextButton") and gui.Text:lower() or ""
-                                local name = gui.Name:lower()
-                                
-                                if text == "play" or name == "play" or text == "start" or name == "start" then
-                                    playCooldown = true -- Khóa lại, không spam
-                                    
-                                    if getconnections then
-                                        for _, conn in pairs(getconnections(gui.MouseButton1Click)) do pcall(function() conn:Fire() end) end
-                                    end
-                                    pcall(function() gui:Activate() end)
-                                    
-                                    if gui.AbsolutePosition.X > 0 and gui.AbsolutePosition.Y > 0 then
-                                        local cx = gui.AbsolutePosition.X + (gui.AbsoluteSize.X / 2)
-                                        local cy = gui.AbsolutePosition.Y + (gui.AbsoluteSize.Y / 2)
-                                        pcall(function()
-                                            if VirtualInputManager and VirtualInputManager.SendTouchEvent then
-                                                VirtualInputManager:SendTouchEvent(0, 0, 0, cx, cy, game)
-                                                task.wait(0.1)
-                                                VirtualInputManager:SendTouchEvent(0, 1, 0, cx, cy, game)
-                                            end
-                                        end)
-                                    end
-                                    
-                                    -- Chờ 5 giây để game xử lý spawn, nếu vẫn chưa có nhân vật thì mới nhấn lại
-                                    task.wait(5)
-                                    playCooldown = false
+    while task.wait(1) do
+        pcall(function()
+            local playerGui = LocalPlayer:FindFirstChild("PlayerGui")
+            if playerGui then
+                for _, gui in pairs(playerGui:GetDescendants()) do
+                    -- Chỉ lấy các nút đang hiển thị trên màn hình
+                    if (gui:IsA("TextButton") or gui:IsA("ImageButton")) and gui.Visible and gui.AbsolutePosition.X > 0 then
+                        
+                        local text = ""
+                        if gui:IsA("TextButton") and gui.Text then
+                            text = string.lower(gui.Text)
+                        end
+                        local name = string.lower(gui.Name)
+                        
+                        -- Dùng string.find để quét mở rộng, bao hàm mọi tên có chữ Play/Start
+                        if string.find(name, "play") or string.find(text, "play") or string.find(name, "start") or string.find(text, "start") then
+                            
+                            -- Bắn toàn bộ các Event có thể có của 1 nút (Bypass Mobile)
+                            if getconnections then
+                                local eventTypes = {"MouseButton1Click", "MouseButton1Down", "MouseButton1Up", "Activated", "TouchTap"}
+                                for _, ev in ipairs(eventTypes) do
+                                    pcall(function()
+                                        for _, conn in pairs(getconnections(gui[ev])) do
+                                            conn:Fire()
+                                        end
+                                    end)
                                 end
                             end
+                            
+                            pcall(function() gui:Activate() end)
+                            
+                            -- Giả lập vị trí chạm
+                            local cx = gui.AbsolutePosition.X + (gui.AbsoluteSize.X / 2)
+                            local cy = gui.AbsolutePosition.Y + (gui.AbsoluteSize.Y / 2)
+                            pcall(function()
+                                if VirtualInputManager and VirtualInputManager.SendTouchEvent then
+                                    VirtualInputManager:SendTouchEvent(0, 0, 0, cx, cy, game)
+                                    task.wait(0.05)
+                                    VirtualInputManager:SendTouchEvent(0, 1, 0, cx, cy, game)
+                                end
+                            end)
                         end
                     end
                 end
-            end)
-        end
+            end
+        end)
     end
 end)
 
--- ================= GIAO DIỆN MENU (TỐI GIẢN CHỈ LẤY NÚT) =================
+-- ================= GIAO DIỆN MENU =================
 local ScreenGui = Instance.new("ScreenGui")
-ScreenGui.Name = "KL_MobileMasterGui_V3"
+ScreenGui.Name = "KL_MobileMasterGui_V4"
 ScreenGui.Parent = CoreGui
 
 local ToggleBtn = Instance.new("TextButton")
@@ -130,7 +130,7 @@ ToggleBtn.MouseButton1Click:Connect(function() MainFrame.Visible = not MainFrame
 local Title = Instance.new("TextLabel")
 Title.Size = UDim2.new(1, 0, 0, 30)
 Title.BackgroundColor3 = Color3.fromRGB(30, 30, 42)
-Title.Text = "AUTO EVENT KL V3 (ORBIT & NO CRASH)"
+Title.Text = "AUTO EVENT KL V4 (LƯU CÀI ĐẶT & FIX PLAY)"
 Title.TextColor3 = Color3.fromRGB(0, 255, 180)
 Title.Font = Enum.Font.SourceSansBold
 Title.TextSize = 10
@@ -200,24 +200,23 @@ local function UpdateButtons()
 end
 UpdateButtons()
 
--- ================= 2. AUTO NHẶT RƯƠNG (ORBIT & TRÌNH TỰ) =================
-
--- Hàm thu thập và lọc rương an toàn
+-- ================= 2. AUTO NHẶT RƯƠNG (ORBIT) =================
 local function GetValidChests(hrpPosition)
     local chests = {}
     for _, obj in pairs(Workspace:GetDescendants()) do
-        local name = obj.Name:lower()
-        if (name:find("chest") or name:find("reward")) then
+        local name = string.lower(obj.Name)
+        if (string.find(name, "chest") or string.find(name, "reward")) then
             local isIgnored = false
-            -- Chặn tuyệt đối
-            if name:find("gacha") or name:find("fruit") or name:find("barrel") or name:find("crate") or name:find("box") then
+            
+            if string.find(name, "gacha") or string.find(name, "fruit") or string.find(name, "barrel") or string.find(name, "crate") or string.find(name, "box") then
                 isIgnored = true
             end
+            
             if not isIgnored then
                 local current = obj.Parent
                 while current and current ~= Workspace do
-                    local cName = current.Name:lower()
-                    if cName:find("quest") or cName:find("daily") or cName:find("delivery") or cName:find("bandit") or cName:find("pirate") or cName:find("marine") or cName:find("gacha") or cName:find("fruit") or cName:find("spawn") or cName:find("barrel") then
+                    local cName = string.lower(current.Name)
+                    if string.find(cName, "quest") or string.find(cName, "daily") or string.find(cName, "delivery") or string.find(cName, "bandit") or string.find(cName, "pirate") or string.find(cName, "marine") or string.find(cName, "gacha") or string.find(cName, "fruit") or string.find(cName, "spawn") or string.find(cName, "barrel") then
                         isIgnored = true
                         break
                     end
@@ -236,7 +235,6 @@ local function GetValidChests(hrpPosition)
         end
     end
     
-    -- Sắp xếp rương từ gần đến xa theo khoảng cách tới người chơi
     table.sort(chests, function(a, b)
         return (a.Position - hrpPosition).Magnitude < (b.Position - hrpPosition).Magnitude
     end)
@@ -254,15 +252,12 @@ task.spawn(function()
             for _, chestPart in ipairs(chestList) do
                 if not getgenv().KL_AutoChestRunning then break end
                 
-                -- Vòng lặp ORBIT: Bay trên đầu rương và nhặt liên tục đến khi rương bị game xóa (Despawn)
-                -- Nếu quá 5 giây rương không biến mất (lỗi mạng/giả), bỏ qua rương đó.
                 local timeout = tick() + 5 
                 
                 while chestPart and chestPart.Parent and tick() < timeout and getgenv().KL_AutoChestRunning do
                     StatusLabel.Text = "Trạng thái: Đang nhặt rương (Orbit)..."
                     StatusLabel.TextColor3 = Color3.fromRGB(0, 255, 100)
                     
-                    -- Dịch chuyển nằm sát ngay trên rương (Chống kẹt vào đất)
                     hrp.CFrame = CFrame.new(chestPart.Position + Vector3.new(0, 2.5, 0))
                     hrp.Velocity = Vector3.new(0, 0, 0)
                     
@@ -277,14 +272,14 @@ task.spawn(function()
                         end
                     end)
                     
-                    RunService.Heartbeat:Wait() -- Đợi khung hình tiếp theo (Rất nhanh, mượt)
+                    RunService.Heartbeat:Wait()
                 end
             end
         end
     end
 end)
 
--- ================= 3. HỆ THỐNG AUTO HOP (TRÁNH SERVER FULL) =================
+-- ================= 3. AUTO HOP SERVER (8-11 NGƯỜI) =================
 local function HopServer()
     if IsTeleporting then return end
     local success, result = pcall(function()
@@ -294,7 +289,6 @@ local function HopServer()
 
     if success and result and result.data then
         for _, svr in pairs(result.data) do
-            -- Chỉ chọn server có từ 8 đến 11 người (Tránh dính 12/12 hoặc đang bị tranh giành slot)
             if svr.id ~= game.JobId and not VisitedServers[svr.id] and svr.playing >= 8 and svr.playing <= 11 then
                 VisitedServers[svr.id] = true
                 IsTeleporting = true
