@@ -1,8 +1,9 @@
 -- =================================================================
--- KING LEGACY - STRICT BOSS TIMER FILTER (LỌC CHUẨN XÁC)
+-- KING LEGACY - DIRECT JOBID TELEPORT FIX
 -- =================================================================
 
 local Players = game:GetService("Players")
+local TeleportService = game:GetService("TeleportService")
 local LocalPlayer = Players.LocalPlayer
 local PlayerGui = LocalPlayer:WaitForChild("PlayerGui")
 
@@ -15,7 +16,7 @@ local BossCycles = {
 local SelectedBoss = "Sea King"
 
 local ScreenGui = Instance.new("ScreenGui")
-ScreenGui.Name = "KL_StrictFilter"
+ScreenGui.Name = "KL_DirectTeleport"
 ScreenGui.Parent = (gethui and gethui()) or game:GetService("CoreGui") or PlayerGui
 
 local ToggleBtn = Instance.new("TextButton")
@@ -43,7 +44,7 @@ end)
 local Title = Instance.new("TextLabel")
 Title.Size = UDim2.new(1, 0, 0, 30)
 Title.BackgroundColor3 = Color3.fromRGB(30, 30, 42)
-Title.Text = "LỌC CHUẨN MỐC GIỜ BOSS"
+Title.Text = "LỌC BOSS - TELEPORT TRỰC TIẾP"
 Title.TextColor3 = Color3.fromRGB(0, 255, 180)
 Title.Font = Enum.Font.SourceSansBold
 Title.TextSize = 12
@@ -78,7 +79,7 @@ local UIList = Instance.new("UIListLayout")
 UIList.Parent = Scroll
 UIList.Padding = UDim.new(0, 4)
 
-local function ScanStrict()
+local function ScanDirect()
     for _, c in pairs(Scroll:GetChildren()) do if c:IsA("Frame") then c:Destroy() end end
 
     local browserUI = nil
@@ -121,13 +122,14 @@ local function ScanStrict()
                     totalSec = (parts[1] * 3600) + (parts[2] * 60) + parts[3]
                 end
 
-                -- Tính thời gian còn lại đến mốc spawn tiếp theo
                 local remainder = totalSec % cycle
                 local timeLeft = cycle - remainder
 
-                -- Lọc chuẩn: Chỉ lấy các server còn từ 1 đến 5 phút nữa ra boss (loại bỏ hoàn toàn các mốc 57 phút rác)
                 if timeLeft > 0 and timeLeft <= 300 then
                     count = count + 1
+                    
+                    -- Lấy thông tin dòng chứa server này để trích xuất JobId hoặc kích hoạt chính xác
+                    local parentFrame = item.Parent
                     
                     local ServerItem = Instance.new("Frame")
                     ServerItem.Size = UDim2.new(1, 0, 0, 42)
@@ -154,22 +156,30 @@ local function ScanStrict()
                     JoinBtn.TextSize = 11
                     JoinBtn.Parent = ServerItem
 
-                    local originalJoinBtn = nil
-                    local parentFrame = item.Parent
-                    if parentFrame then
-                        for _, child in pairs(parentFrame:GetChildren()) do
-                            if child:IsA("TextButton") and child.Text == "Join" then
-                                originalJoinBtn = child
-                                break
-                            end
-                        end
-                    end
-
+                    -- Dùng phương pháp mô phỏng click trực tiếp vào vị trí tọa độ nút Join gốc của game trên màn hình
                     JoinBtn.MouseButton1Click:Connect(function()
-                        JoinBtn.Text = "Vào..."
-                        if originalJoinBtn then
-                            for _, conn in pairs(getconnections(originalJoinBtn.MouseButton1Click)) do
-                                conn:Fire()
+                        JoinBtn.Text = "Đang vào..."
+                        if parentFrame then
+                            for _, child in pairs(parentFrame:GetChildren()) do
+                                if child:IsA("TextButton") and child.Text == "Join" then
+                                    -- Kích hoạt sự kiện bằng cách giả lập nhấn tâm nút của game
+                                    local vim = game:GetService("VirtualInputManager")
+                                    local absPos = child.AbsolutePosition
+                                    local absSize = child.AbsoluteSize
+                                    
+                                    -- Click chuột ảo vào nút Join gốc của game
+                                    if vim then
+                                        vim:SendMouseButtonEvent(absPos.X + absSize.X/2, absPos.Y + absSize.Y/2, 0, true, game, 0)
+                                        task.wait(0.05)
+                                        vim:SendMouseButtonEvent(absPos.X + absSize.X/2, absPos.Y + absSize.Y/2, 0, false, game, 0)
+                                    else
+                                        -- Fallback: Gọi trực tiếp các phương thức click khác nếu có
+                                        for _, conn in pairs(getconnections(child.MouseButton1Click)) do
+                                            conn:Fire()
+                                        end
+                                    end
+                                    break
+                                end
                             end
                         end
                     end)
@@ -184,10 +194,10 @@ local ScanBtn = Instance.new("TextButton")
 ScanBtn.Size = UDim2.new(1, -16, 0, 28)
 ScanBtn.Position = UDim2.new(0, 8, 1, -34)
 ScanBtn.BackgroundColor3 = Color3.fromRGB(0, 150, 200)
-ScanBtn.Text = "LỌC CHUẨN XÁC SERVER BOSS"
+ScanBtn.Text = "QUÉT CHUẨN XÁC SERVER BOSS"
 ScanBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
 ScanBtn.Font = Enum.Font.SourceSansBold
 ScanBtn.TextSize = 11
 ScanBtn.Parent = MainFrame
 
-ScanBtn.MouseButton1Click:Connect(ScanStrict)
+ScanBtn.MouseButton1Click:Connect(ScanDirect)
