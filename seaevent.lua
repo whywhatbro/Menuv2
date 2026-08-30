@@ -1,5 +1,5 @@
 -- =================================================================
--- KING LEGACY - V13 PRO (FIX TỰ ĐỘNG NHẤN TỌA ĐỘ KHI ĐỔI SERVER)
+-- KING LEGACY - V14 PRO (HÌNH TRÒN KÉO THẢ TỌA ĐỘ + KHÓA VỊ TRÍ)
 -- =================================================================
 
 local Players = game:GetService("Players")
@@ -9,22 +9,21 @@ local HttpService = game:GetService("HttpService")
 local CoreGui = (gethui and gethui()) or game:GetService("CoreGui")
 local Workspace = game:GetService("Workspace")
 local VirtualInputManager = game:GetService("VirtualInputManager")
-local GuiService = game:GetService("GuiService")
 local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
 local Camera = Workspace.CurrentCamera
 
--- Biến đánh dấu thời điểm vừa vào server (dùng để ép bấm nút Play trong 15s đầu)
 local ServerJoinTick = tick()
 
 -- ================= HỆ THỐNG LƯU CÀI ĐẶT =================
-local SettingsFile = "KingLegacy_AutoChest_Settings_V13.json"
+local SettingsFile = "KingLegacy_AutoChest_Settings_V14.json"
 local Settings = { 
     AutoHop = false, 
     AutoChest = false, 
     HopDelay = 15,
-    PlayX = 0,
-    PlayY = 0
+    DotX = 0.5, -- Lưu dạng Scale để không bị lệch màn hình điện thoại khác nhau
+    DotY = 0.5,
+    IsLocked = false
 }
 
 local function SaveSettings()
@@ -42,8 +41,9 @@ local function LoadSettings()
                 Settings.AutoHop = decoded.AutoHop or false
                 Settings.AutoChest = decoded.AutoChest or false
                 Settings.HopDelay = decoded.HopDelay or 15
-                Settings.PlayX = decoded.PlayX or 0
-                Settings.PlayY = decoded.PlayY or 0
+                Settings.DotX = decoded.DotX or 0.5
+                Settings.DotY = decoded.DotY or 0.5
+                Settings.IsLocked = decoded.IsLocked or false
             end
         end
     end)
@@ -56,7 +56,6 @@ getgenv().KL_HopDelay = Settings.HopDelay
 
 local VisitedServers = {}
 local IsTeleporting = false
-local isSettingCoord = false
 
 TeleportService.TeleportInitFailed:Connect(function(player, teleportResult, errorMessage)
     if getgenv().KL_AutoHopRunning then
@@ -65,85 +64,67 @@ TeleportService.TeleportInitFailed:Connect(function(player, teleportResult, erro
     end
 end)
 
--- ================= HÀM KÍCH HOẠT NÚT PLAY THEO TỌA ĐỘ =================
-local function ExecutePlayClick()
-    local success = false
-    if Settings.PlayX > 0 and Settings.PlayY > 0 then
-        pcall(function()
-            if VirtualInputManager and VirtualInputManager.SendTouchEvent then
-                for i = 1, 3 do
-                    VirtualInputManager:SendTouchEvent(0, 0, 0, Settings.PlayX, Settings.PlayY, game)
-                    task.wait(0.03)
-                    VirtualInputManager:SendTouchEvent(0, 1, 0, Settings.PlayX, Settings.PlayY, game)
-                    task.wait(0.05)
-                end
-                success = true
-            end
-        end)
-    else
-        -- Fallback quét giao diện nếu chưa đặt tọa độ
-        local playerGui = LocalPlayer:FindFirstChild("PlayerGui")
-        if playerGui then
-            for _, gui in pairs(playerGui:GetDescendants()) do
-                if (gui:IsA("TextButton") or gui:IsA("ImageButton")) and gui.Visible and gui.AbsolutePosition.X > 0 then
-                    local matched = false
-                    local name = string.lower(gui.Name)
-                    if string.find(name, "play") or string.find(name, "start") or string.find(name, "pirate") or string.find(name, "marine") then
-                        matched = true
-                    else
-                        for _, child in pairs(gui:GetDescendants()) do
-                            if child:IsA("TextLabel") or child:IsA("TextBox") then
-                                local cText = string.lower(child.Text)
-                                if string.find(cText, "play") or string.find(cText, "start") or string.find(cText, "pirate") or string.find(cText, "marine") then
-                                    matched = true
-                                    break
-                                end
-                            end
-                        end
-                    end
-                    if matched then
-                        success = true
-                        pcall(function() gui:Activate() end)
-                    end
-                end
-            end
-        end
-    end
-    return success
-end
+-- ================= GIAO DIỆN CHÍNH & HÌNH TRÒN KÉO THẢ =================
+local ScreenGui = Instance.new("ScreenGui")
+ScreenGui.Name = "KL_MobileMasterGui_V14"
+ScreenGui.Parent = CoreGui
 
--- ================= VÒNG LẶP KIỂM TRA & ÉP BẤM PLAY KHI VÀO SERVER =================
-task.spawn(function()
-    while true do
-        task.wait(1)
-        pcall(function()
-            -- Nếu vừa vào server chưa đến 15 giây, ép bấm liên tục tọa độ Play
-            if tick() - ServerJoinTick < 15 then
-                ExecutePlayClick()
-            else
-                -- Sau 15 giây kiểm tra trạng thái nhân vật bình thường
-                local char = LocalPlayer.Character
-                local humanoid = char and char:FindFirstChildOfClass("Humanoid")
-                local hrp = char and char:FindFirstChild("HumanoidRootPart")
-                
-                if char and humanoid and hrp and humanoid.Health > 0 then
-                    if Camera.CameraSubject ~= humanoid or Camera.CameraType ~= Enum.CameraType.Custom then
-                        Camera.CameraType = Enum.CameraType.Custom
-                        Camera.CameraSubject = humanoid
-                    end
-                else
-                    ExecutePlayClick()
-                end
+-- HÌNH TRÒN BÉ BÉ ĐỂ KÉO THẢ ĐẾN NÚT PLAY
+local PlayDot = Instance.new("TextButton")
+PlayDot.Size = UDim2.new(0, 40, 0, 40)
+PlayDot.Position = UDim2.new(Settings.DotX, -20, Settings.DotY, -20)
+PlayDot.BackgroundColor3 = Settings.IsLocked and Color3.fromRGB(0, 255, 100) or Color3.fromRGB(255, 50, 50)
+PlayDot.Text = "PLAY"
+PlayDot.TextColor3 = Color3.fromRGB(255, 255, 255)
+PlayDot.Font = Enum.Font.SourceSansBold
+PlayDot.TextSize = 10
+PlayDot.Parent = ScreenGui
+
+local UICorner = Instance.new("UICorner")
+UICorner.CornerRadius = UDim.new(1, 0) -- Tạo hình tròn
+UICorner.Parent = PlayDot
+
+-- Logic kéo thả hình tròn
+local dragging = false
+local dragInput, dragStart, startPos
+
+PlayDot.InputBegan:Connect(function(input)
+    if not Settings.IsLocked and (input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch) then
+        dragging = true
+        dragStart = input.Position
+        startPos = PlayDot.Position
+        input.Changed:Connect(function()
+            if input.UserInputState == Enum.UserInputState.End then
+                dragging = false
             end
         end)
     end
 end)
 
--- ================= GIAO DIỆN MENU (ẨN BAN ĐẦU) =================
-local ScreenGui = Instance.new("ScreenGui")
-ScreenGui.Name = "KL_MobileMasterGui_V13"
-ScreenGui.Parent = CoreGui
+UserInputService.InputChanged:Connect(function(input)
+    if dragging and not Settings.IsLocked and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
+        local delta = input.Position - dragStart
+        PlayDot.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+    end
+end)
 
+PlayDot.InputEnded:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+        if dragging then
+            dragging = false
+            -- Lưu lại vị trí Scale mới
+            local absPos = PlayDot.AbsolutePosition
+            local absSize = PlayDot.AbsoluteSize
+            local centerX = absPos.X + (absSize.X / 2)
+            local centerY = absPos.Y + (absSize.Y / 2)
+            Settings.DotX = centerX / Workspace.CurrentCamera.ViewportSize.X
+            Settings.DotY = centerY / Workspace.CurrentCamera.ViewportSize.Y
+            SaveSettings()
+        end
+    end
+end)
+
+-- Nút mở menu chính
 local ToggleBtn = Instance.new("TextButton")
 ToggleBtn.Size = UDim2.new(0, 45, 0, 45)
 ToggleBtn.Position = UDim2.new(0, 15, 0.3, 0)
@@ -155,12 +136,12 @@ ToggleBtn.TextSize = 11
 ToggleBtn.Parent = ScreenGui
 
 local MainFrame = Instance.new("Frame")
-MainFrame.Size = UDim2.new(0, 360, 0, 470)
-MainFrame.Position = UDim2.new(0.5, -180, 0.5, -235)
+MainFrame.Size = UDim2.new(0, 360, 0, 440)
+MainFrame.Position = UDim2.new(0.5, -180, 0.5, -220)
 MainFrame.BackgroundColor3 = Color3.fromRGB(20, 20, 28)
 MainFrame.Active = true
 MainFrame.Draggable = true
-MainFrame.Visible = false
+MainFrame.Visible = false -- Ẩn gọn ban đầu
 MainFrame.Parent = ScreenGui
 
 ToggleBtn.MouseButton1Click:Connect(function() MainFrame.Visible = not MainFrame.Visible end)
@@ -168,7 +149,7 @@ ToggleBtn.MouseButton1Click:Connect(function() MainFrame.Visible = not MainFrame
 local Title = Instance.new("TextLabel")
 Title.Size = UDim2.new(1, 0, 0, 30)
 Title.BackgroundColor3 = Color3.fromRGB(30, 30, 42)
-Title.Text = "AUTO EVENT KL V13 (FIX HOP AUTO CLICK)"
+Title.Text = "AUTO EVENT KL V14 (DRAG DOT LOCK)"
 Title.TextColor3 = Color3.fromRGB(0, 255, 180)
 Title.Font = Enum.Font.SourceSansBold
 Title.TextSize = 10
@@ -184,47 +165,29 @@ StatusLabel.Font = Enum.Font.SourceSans
 StatusLabel.TextSize = 11
 StatusLabel.Parent = MainFrame
 
-local SetCoordBtn = Instance.new("TextButton")
-SetCoordBtn.Size = UDim2.new(1, -16, 0, 35)
-SetCoordBtn.Position = UDim2.new(0, 8, 0, 68)
-SetCoordBtn.BackgroundColor3 = Color3.fromRGB(220, 100, 0)
-SetCoordBtn.Text = "📍 ĐẶT VỊ TRÍ NÚT PLAY (BẤM VÀO ĐÂY RỒI CHẠM NÚT PLAY)"
-SetCoordBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
-SetCoordBtn.Font = Enum.Font.SourceSansBold
-SetCoordBtn.TextSize = 10
-SetCoordBtn.Parent = MainFrame
+-- NÚT KHÓA / MỞ KHÓA VỊ TRÍ HÌNH TRÒN
+local LockBtn = Instance.new("TextButton")
+LockBtn.Size = UDim2.new(1, -16, 0, 35)
+LockBtn.Position = UDim2.new(0, 8, 0, 68)
+LockBtn.BackgroundColor3 = Settings.IsLocked and Color3.fromRGB(0, 180, 80) or Color3.fromRGB(180, 50, 50)
+LockBtn.Text = Settings.IsLocked and "🔒 KHÓA ĐIỂM NHẤN: ĐANG KHÓA" or "🔓 KHÓA ĐIỂM NHẤN: ĐANG MỞ (CÓ THỂ KÉO)"
+LockBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+LockBtn.Font = Enum.Font.SourceSansBold
+LockBtn.TextSize = 10
+LockBtn.Parent = MainFrame
 
-local CoordInfoLabel = Instance.new("TextLabel")
-CoordInfoLabel.Size = UDim2.new(1, -16, 0, 20)
-CoordInfoLabel.Position = UDim2.new(0, 8, 0, 105)
-CoordInfoLabel.BackgroundTransparency = 1
-CoordInfoLabel.Text = (Settings.PlayX > 0 and "Đã lưu tọa độ: X="..math.floor(Settings.PlayX).." Y="..math.floor(Settings.PlayY)) or "Tọa độ nút Play: Chưa thiết lập"
-CoordInfoLabel.TextColor3 = Color3.fromRGB(150, 255, 150)
-CoordInfoLabel.Font = Enum.Font.SourceSans
-CoordInfoLabel.TextSize = 10
-CoordInfoLabel.Parent = MainFrame
-
-SetCoordBtn.MouseButton1Click:Connect(function()
-    isSettingCoord = true
-    StatusLabel.Text = "Trạng thái: HÃY CHẠM VÀO NÚT PLAY TRÊN MÀN HÌNH NGAY!"
-    StatusLabel.TextColor3 = Color3.fromRGB(255, 165, 0)
-end)
-
-UserInputService.InputBegan:Connect(function(input)
-    if isSettingCoord and (input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch) then
-        Settings.PlayX = input.Position.X
-        Settings.PlayY = input.Position.Y
-        isSettingCoord = false
-        SaveSettings()
-        StatusLabel.Text = "Trạng thái: Đã lưu vị trí nút Play thành công!"
-        StatusLabel.TextColor3 = Color3.fromRGB(0, 255, 100)
-        CoordInfoLabel.Text = "Đã lưu tọa độ: X="..math.floor(Settings.PlayX).." Y="..math.floor(Settings.PlayY)
-    end
+LockBtn.MouseButton1Click:Connect(function()
+    Settings.IsLocked = not Settings.IsLocked
+    SaveSettings()
+    LockBtn.BackgroundColor3 = Settings.IsLocked and Color3.fromRGB(0, 180, 80) or Color3.fromRGB(180, 50, 50)
+    LockBtn.Text = Settings.IsLocked and "🔒 KHÓA ĐIỂM NHẤN: ĐANG KHÓA" or "🔓 KHÓA ĐIỂM NHẤN: ĐANG MỞ (CÓ THỂ KÉO)"
+    PlayDot.BackgroundColor3 = Settings.IsLocked and Color3.fromRGB(0, 255, 100) or Color3.fromRGB(255, 50, 50)
+    StatusLabel.Text = Settings.IsLocked and "Trạng thái: Đã khóa vị trí hình tròn!" or "Trạng thái: Đã mở khóa, hãy kéo hình tròn đến nút Play."
 end)
 
 local TimeTextBox = Instance.new("TextBox")
 TimeTextBox.Size = UDim2.new(0.35, 0, 0, 25)
-TimeTextBox.Position = UDim2.new(0.62, 0, 0, 135)
+TimeTextBox.Position = UDim2.new(0.62, 0, 0, 115)
 TimeTextBox.BackgroundColor3 = Color3.fromRGB(45, 45, 65)
 TimeTextBox.Text = tostring(getgenv().KL_HopDelay)
 TimeTextBox.TextColor3 = Color3.fromRGB(0, 255, 180)
@@ -234,7 +197,7 @@ TimeTextBox.Parent = MainFrame
 
 local TimeLabel = Instance.new("TextLabel")
 TimeLabel.Size = UDim2.new(0.6, 0, 0, 25)
-TimeLabel.Position = UDim2.new(0, 8, 0, 135)
+TimeLabel.Position = UDim2.new(0, 8, 0, 115)
 TimeLabel.BackgroundTransparency = 1
 TimeLabel.Text = " Thời gian ở SV (giây):"
 TimeLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
@@ -255,14 +218,14 @@ end)
 
 local AutoHopBtn = Instance.new("TextButton")
 AutoHopBtn.Size = UDim2.new(1, -16, 0, 32)
-AutoHopBtn.Position = UDim2.new(0, 8, 0, 170)
+AutoHopBtn.Position = UDim2.new(0, 8, 0, 150)
 AutoHopBtn.Parent = MainFrame
 AutoHopBtn.Font = Enum.Font.SourceSansBold
 AutoHopBtn.TextSize = 11
 
 local AutoChestBtn = Instance.new("TextButton")
 AutoChestBtn.Size = UDim2.new(1, -16, 0, 32)
-AutoChestBtn.Position = UDim2.new(0, 8, 0, 210)
+AutoChestBtn.Position = UDim2.new(0, 8, 0, 190)
 AutoChestBtn.Parent = MainFrame
 AutoChestBtn.Font = Enum.Font.SourceSansBold
 AutoChestBtn.TextSize = 11
@@ -275,6 +238,51 @@ local function UpdateButtons()
     AutoChestBtn.Text = getgenv().KL_AutoChestRunning and "AUTO NHẶT RƯƠNG (ORBIT): BẬT" or "AUTO NHẶT RƯƠNG (ORBIT): TẮT"
 end
 UpdateButtons()
+
+-- ================= HÀM KÍCH HOẠT NÚT PLAY TỰ ĐỘNG TẠI TÂM HÌNH TRÒN =================
+local function ExecutePlayClickAtDot()
+    pcall(function()
+        if VirtualInputManager and VirtualInputManager.SendTouchEvent then
+            local absPos = PlayDot.AbsolutePosition
+            local absSize = PlayDot.AbsoluteSize
+            local centerX = absPos.X + (absSize.X / 2)
+            local centerY = absPos.Y + (absSize.Y / 2)
+            
+            for i = 1, 2 do
+                VirtualInputManager:SendTouchEvent(0, 0, 0, centerX, centerY, game)
+                task.wait(0.03)
+                VirtualInputManager:SendTouchEvent(0, 1, 0, centerX, centerY, game)
+                task.wait(0.05)
+            end
+        end
+    end)
+end
+
+-- ================= VÒNG LẶP KIỂM TRA 10-15 GIÂY ĐẦU VÀ KẸT SẢNH =================
+task.spawn(function()
+    while true do
+        task.wait(1)
+        pcall(function()
+            -- Trong 12 giây đầu tiên mới vào server hoặc khi chưa có nhân vật -> Ép nhấn vào tâm hình tròn liên tục
+            if tick() - ServerJoinTick < 12 then
+                ExecutePlayClickAtDot()
+            else
+                local char = LocalPlayer.Character
+                local humanoid = char and char:FindFirstChildOfClass("Humanoid")
+                local hrp = char and char:FindFirstChild("HumanoidRootPart")
+                
+                if char and humanoid and hrp and humanoid.Health > 0 then
+                    if Camera.CameraSubject ~= humanoid or Camera.CameraType ~= Enum.CameraType.Custom then
+                        Camera.CameraType = Enum.CameraType.Custom
+                        Camera.CameraSubject = humanoid
+                    end
+                else
+                    ExecutePlayClickAtDot()
+                end
+            end
+        end)
+    end
+end)
 
 -- ================= 2. AUTO NHẶT RƯƠNG (ORBIT) =================
 local function GetValidChests(hrpPosition)
@@ -357,6 +365,7 @@ local function HopServer()
                 VisitedServers[svr.id] = true
                 IsTeleporting = true
                 StatusLabel.Text = "Trạng thái: Đang kết nối server mới..."
+                ServerJoinTick = tick() -- Reset lại mốc thời gian khi đổi server thành công
                 pcall(function()
                     TeleportService:TeleportToPlaceInstance(game.PlaceId, svr.id, LocalPlayer)
                 end)
