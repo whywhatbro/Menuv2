@@ -1,5 +1,5 @@
 -- =================================================================
--- KING LEGACY - LỌC CHUẨN RƯƠNG BÁU VẬT (BỎ QUA GACHA & NHIỆM VỤ)
+-- KING LEGACY - AUTO RƯƠNG CLEAN (FIX LỖI HIỂN THỊ MENU)
 -- =================================================================
 
 local Players = game:GetService("Players")
@@ -15,7 +15,7 @@ local AutoChestRunning = false
 local HopDelay = 15
 
 local ScreenGui = Instance.new("ScreenGui")
-ScreenGui.Name = "KL_ChestHopClean"
+ScreenGui.Name = "KL_ChestHopCleanFix"
 ScreenGui.Parent = CoreGui
 
 local ToggleBtn = Instance.new("TextButton")
@@ -114,7 +114,6 @@ local UIList = Instance.new("UIListLayout")
 UIList.Parent = Scroll
 UIList.Padding = UDim.new(0, 4)
 
--- Bộ lọc loại bỏ hoàn toàn Gacha trái cây và Thùng hàng nhiệm vụ
 task.spawn(function()
     while true do
         task.wait(0.4)
@@ -125,7 +124,6 @@ task.spawn(function()
                 if not AutoChestRunning then break end
                 local name = obj.Name:lower()
                 
-                -- Điều kiện nhận diện rương báu vật thật và loại trừ các khu vực đặc biệt
                 local isChest = name:find("chest") or name == "box" or name:find("treasure")
                 local isExcluded = name:find("seaking") 
                     or name:find("hydra") 
@@ -147,9 +145,7 @@ task.spawn(function()
                     end
                     
                     if part then
-                        -- Kiểm tra thêm vị trí đường đi để không đụng vào khu vực giao hàng hay gacha
                         local pos = part.Position
-                        -- Thêm bước dịch chuyển chính xác đến rương
                         hrp.CFrame = CFrame.new(pos + Vector3.new(0, 3, 0))
                         task.wait(0.25)
                     end
@@ -209,7 +205,7 @@ AutoHopBtn.MouseButton1Click:Connect(function()
     end
 end)
 
-AutoChestBtn.MouseButton1Click:Connect(function`()
+AutoChestBtn.MouseButton1Click:Connect(function()
     AutoChestRunning = not AutoChestRunning
     if AutoChestRunning then
         AutoChestBtn.BackgroundColor3 = Color3.fromRGB(0, 180, 80)
