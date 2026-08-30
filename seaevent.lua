@@ -1,5 +1,5 @@
 -- =================================================================
--- KING LEGACY - AUTO RƯƠNG (LOẠI BỎ MINIONS & QUÁI VẬT)
+-- KING LEGACY - AUTO RƯƠNG (CHỈ NHẶT ĐÚNG THƯ MỤC RƯƠNG CHUẨN)
 -- =================================================================
 
 local Players = game:GetService("Players")
@@ -15,7 +15,7 @@ local AutoChestRunning = false
 local HopDelay = 15
 
 local ScreenGui = Instance.new("ScreenGui")
-ScreenGui.Name = "KL_ChestNoMinions"
+ScreenGui.Name = "KL_ChestStrict"
 ScreenGui.Parent = CoreGui
 
 local ToggleBtn = Instance.new("TextButton")
@@ -43,10 +43,10 @@ end)
 local Title = Instance.new("TextLabel")
 Title.Size = UDim2.new(1, 0, 0, 30)
 Title.BackgroundColor3 = Color3.fromRGB(30, 30, 42)
-Title.Text = "AUTO RƯƠNG (ĐÃ FIX LỖI MINIONS)"
+Title.Text = "AUTO RƯƠNG CHUẨN (LỌC STRICT MINIONS)"
 Title.TextColor3 = Color3.fromRGB(0, 255, 180)
 Title.Font = Enum.Font.SourceSansBold
-Title.TextSize = 11
+Title.TextSize = 10
 Title.Parent = MainFrame
 
 local TimeBoxContainer = Instance.new("Frame")
@@ -114,7 +114,7 @@ local UIList = Instance.new("UIListLayout")
 UIList.Parent = Scroll
 UIList.Padding = UDim.new(0, 4)
 
--- Bộ lọc sạch sâu: Loại bỏ hoàn toàn minions, quái vật, hoạt ảnh và nhiệm vụ
+-- Thuật toán kiểm tra thông minh: Chỉ quét các đối tượng KHÔNG nằm bên trong thư mục Enemy/Monster/Minions
 task.spawn(function()
     while true do
         task.wait(0.4)
@@ -125,52 +125,46 @@ task.spawn(function()
                 if not AutoChestRunning then break end
                 
                 local name = obj.Name:lower()
-                local parentName = obj.Parent and obj.Parent.Name:lower() or ""
                 
-                -- Nhận diện đúng rương báu vật chuẩn
-                local isChest = name:find("chest") or name:find("treasure")
-                
-                -- Danh sách từ khóa loại trừ chi tiết (Thêm cả Minions, Mobs, Kẻ địch)
-                local isExcluded = name:find("seaking") 
-                    or name:find("hydra") 
-                    or name:find("boss") 
-                    or name:find("player")
-                    or name:find("gacha")
-                    or name:find("random")
-                    or name:find("fruit")
-                    or name:find("quest")
-                    or name:find("delivery")
-                    or name:find("mission")
-                    or name:find("effect")
-                    or name:find("anim")
-                    or name:find("visual")
-                    or name:find("fx")
-                    or name:find("minion")
-                    or name:find("mob")
-                    or name:find("enemy")
-                    or name:find("pirate")
-                    or name:find("marine")
-                    or name:find("bandit")
-                    or name:find("soldier")
-                    or parentName:find("quest")
-                    or parentName:find("daily")
-                    or parentName:find("gacha")
-                    or parentName:find("effect")
-                    or parentName:find("minion")
-                    or parentName:find("mob")
-                
-                if isChest and not isExcluded then
-                    local part = nil
-                    if obj:IsA("Model") then
-                        part = obj.PrimaryPart or obj:FindFirstChildWhichIsA("BasePart")
-                    elseif obj:IsA("BasePart") then
-                        part = obj
+                -- Kiểm tra xem có phải rương không (chỉ nhận diện từ "chest" rõ ràng)
+                if name:find("chest") then
+                    -- Kiểm tra xem vật thể có nằm trong các khu vực/thư mục của quái hay không bằng cách check toàn bộ đường dẫn tổ tiên (FullName)
+                    local currentParent = obj.Parent
+                    local isInsideMobOrMinion = false
+                    
+                    while currentParent and currentParent ~= Workspace do
+                        local pName = currentParent.Name:lower()
+                        if pName:find("minion") or pName:find("mob") or pName:find("enemy") or pName:find("monster") or pName:find("quest") or pName:find("gacha") or pName:find("boss") or pName:find("npc") then
+                            isInsideMobOrMinion = true
+                            break
+                        end
+                        currentParent = currentParent.Parent
                     end
                     
-                    if part then
-                        local pos = part.Position
-                        hrp.CFrame = CFrame.new(pos + Vector3.new(0, 3, 0))
-                        task.wait(0.25)
+                    -- Thêm các từ khóa phụ loại trừ trực tiếp tên
+                    local isExcluded = name:find("minion") 
+                        or name:find("mob") 
+                        or name:find("enemy") 
+                        or name:find("boss") 
+                        or name:find("quest")
+                        or name:find("delivery")
+                        or name:find("gacha")
+                        or name:find("effect")
+                        or name:find("anim")
+
+                    if not isInsideMobOrMinion and not isExcluded then
+                        local part = nil
+                        if obj:IsA("Model") then
+                            part = obj.PrimaryPart or obj:FindFirstChildWhichIsA("BasePart")
+                        elseif obj:IsA("BasePart") then
+                            part = obj
+                        end
+                        
+                        if part then
+                            local pos = part.Position
+                            hrp.CFrame = CFrame.new(pos + Vector3.new(0, 3, 0))
+                            task.wait(0.25)
+                        end
                     end
                 end
             end
