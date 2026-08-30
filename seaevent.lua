@@ -1,22 +1,21 @@
 -- =================================================================
--- KING LEGACY - PURE JOBID TELEPORT FIX
+-- KING LEGACY - AUTO TOGGLE BROWSER JOIN FIX
 -- =================================================================
 
 local Players = game:GetService("Players")
-local TeleportService = game:GetService("TeleportService")
 local LocalPlayer = Players.LocalPlayer
 local PlayerGui = LocalPlayer:WaitForChild("PlayerGui")
 
 local BossCycles = {
-    ["Sea King"] = 3600,       -- 3600 giây (1 giờ)
-    ["Ghost Ship"] = 6000,     -- 6000 giây (1 giờ 40 phút)
-    ["Hydra"] = 14400          -- 14400 giây (4 giờ)
+    ["Sea King"] = 3600,
+    ["Ghost Ship"] = 6000,
+    ["Hydra"] = 14400
 }
 
 local SelectedBoss = "Sea King"
 
 local ScreenGui = Instance.new("ScreenGui")
-ScreenGui.Name = "KL_PureTeleport"
+ScreenGui.Name = "KL_AutoToggleJoin"
 ScreenGui.Parent = (gethui and gethui()) or game:GetService("CoreGui") or PlayerGui
 
 local ToggleBtn = Instance.new("TextButton")
@@ -44,7 +43,7 @@ end)
 local Title = Instance.new("TextLabel")
 Title.Size = UDim2.new(1, 0, 0, 30)
 Title.BackgroundColor3 = Color3.fromRGB(30, 30, 42)
-Title.Text = "LỌC BOSS - TELEPORT MÃ SERVER"
+Title.Text = "LỌC BOSS - THAM GIA TRỰC TIẾP"
 Title.TextColor3 = Color3.fromRGB(0, 255, 180)
 Title.Font = Enum.Font.SourceSansBold
 Title.TextSize = 12
@@ -79,7 +78,7 @@ local UIList = Instance.new("UIListLayout")
 UIList.Parent = Scroll
 UIList.Padding = UDim.new(0, 4)
 
-local function ScanPure()
+local function ScanAndFix()
     for _, c in pairs(Scroll:GetChildren()) do if c:IsA("Frame") then c:Destroy() end end
 
     local browserUI = nil
@@ -94,7 +93,7 @@ local function ScanPure()
         local Err = Instance.new("TextLabel")
         Err.Size = UDim2.new(1, 0, 1, 0)
         Err.BackgroundTransparency = 1
-        Err.Text = "⚠️ HÃY MỞ BẢNG 'Servers' TRONG GAME TRƯỚC!"
+        Err.Text = "⚠️ HÃY MỞ BẢNG 'Servers' TRONG GAME 1 LẦN ĐẦU ĐỂ TẢI DỮ LIỆU!"
         Err.TextColor3 = Color3.fromRGB(255, 100, 100)
         Err.Font = Enum.Font.SourceSansBold
         Err.TextSize = 11
@@ -154,36 +153,16 @@ local function ScanPure()
                     JoinBtn.TextSize = 11
                     JoinBtn.Parent = ServerItem
 
-                    -- Trích xuất JobId trực tiếp từ kết nối hoặc thuộc tính của nút Join gốc
                     JoinBtn.MouseButton1Click:Connect(function()
-                        JoinBtn.Text = "Đang dịch chuyển..."
+                        JoinBtn.Text = "Đang vào..."
                         if parentFrame then
                             for _, child in pairs(parentFrame:GetChildren()) do
                                 if child:IsA("TextButton") and child.Text == "Join" then
-                                    -- Lấy các kết nối gắn với nút Join gốc để tìm JobId ẩn bên trong script của game
-                                    for _, conn in pairs(getconnections(child.MouseButton1Click)) do
-                                        local func = conn.Function
-                                        if func then
-                                            local constants = debug.getconstants(func)
-                                            for _, c in pairs(constants) do
-                                                if type(c) == "string" and #c == 36 and c:find("-") then
-                                                    -- Tìm thấy JobId dạng chuẩn (ví dụ: xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx)
-                                                    TeleportService:TeleportToPlaceInstance(game.PlaceId, c, LocalPlayer)
-                                                    return
-                                                end
-                                            end
-                                        end
-                                    end
-                                end
-                            end
-                        end
-                        -- Fallback nếu không lấy được JobId qua hằng số: Kích hoạt trực tiếp nút gốc lần cuối
-                        if parentFrame then
-                            for _, child in pairs(parentFrame:GetChildren()) do
-                                if child:IsA("TextButton") and child.Text == "Join" then
+                                    -- Kích hoạt trực tiếp toàn bộ connection của game gắn trên nút Join
                                     for _, conn in pairs(getconnections(child.MouseButton1Click)) do
                                         conn:Fire()
                                     end
+                                    break
                                 end
                             end
                         end
@@ -205,4 +184,4 @@ ScanBtn.Font = Enum.Font.SourceSansBold
 ScanBtn.TextSize = 11
 ScanBtn.Parent = MainFrame
 
-ScanBtn.MouseButton1Click:Connect(ScanPure)
+ScanBtn.MouseButton1Click:Connect(ScanAndFix)
