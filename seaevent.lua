@@ -1,5 +1,5 @@
 -- =================================================================
--- KING LEGACY - V16 PRO (FIX LỖI KHÔNG MỞ ĐƯỢC MENU TRÊN MOBILE)
+-- KING LEGACY - V10 PRO (CÁCH KHÁC: BẮT TỌA ĐỘ THÔ & TỌA ĐỘ CỐ ĐỊNH)
 -- =================================================================
 
 local Players = game:GetService("Players")
@@ -9,23 +9,15 @@ local HttpService = game:GetService("HttpService")
 local CoreGui = (gethui and gethui()) or game:GetService("CoreGui")
 local Workspace = game:GetService("Workspace")
 local VirtualInputManager = game:GetService("VirtualInputManager")
-local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
+local RunService = game:GetService("RunService")
 local Camera = Workspace.CurrentCamera
 
 local ServerJoinTick = tick()
 
 -- ================= HỆ THỐNG LƯU CÀI ĐẶT =================
 local SettingsFile = "KingLegacy_AutoChest_Settings.json"
-local Settings = { 
-    AutoHop = false, 
-    AutoChest = false, 
-    HopDelay = 15,
-    DotX = 0.5, 
-    DotY = 0.5,
-    IsLocked = false,
-    AutoPlay = true
-}
+local Settings = { AutoHop = false, AutoChest = false, HopDelay = 15, AutoPlay = true }
 
 local function SaveSettings()
     pcall(function()
@@ -42,9 +34,6 @@ local function LoadSettings()
                 Settings.AutoHop = decoded.AutoHop ~= nil and decoded.AutoHop or false
                 Settings.AutoChest = decoded.AutoChest ~= nil and decoded.AutoChest or false
                 Settings.HopDelay = decoded.HopDelay or 15
-                Settings.DotX = decoded.DotX or 0.5
-                Settings.DotY = decoded.DotY or 0.5
-                Settings.IsLocked = decoded.IsLocked ~= nil and decoded.IsLocked or false
                 Settings.AutoPlay = decoded.AutoPlay ~= nil and decoded.AutoPlay or true
             end
         end
@@ -69,66 +58,11 @@ end)
 
 -- ================= GIAO DIỆN CHÍNH =================
 local ScreenGui = Instance.new("ScreenGui")
-ScreenGui.Name = "KL_MobileMasterGui_V16"
+ScreenGui.Name = "KL_MobileMasterGui_V10_Alt"
 ScreenGui.ResetOnSpawn = false
 ScreenGui.Parent = CoreGui
 
--- HÌNH TRÒN KÉO THẢ ĐẾN NÚT PLAY
-local PlayDot = Instance.new("TextButton")
-PlayDot.Size = UDim2.new(0, 40, 0, 40)
-PlayDot.Position = UDim2.new(Settings.DotX, -20, Settings.DotY, -20)
-PlayDot.BackgroundColor3 = Settings.IsLocked and Color3.fromRGB(0, 255, 100) or Color3.fromRGB(255, 50, 50)
-PlayDot.Text = "PLAY"
-PlayDot.TextColor3 = Color3.fromRGB(255, 255, 255)
-PlayDot.Font = Enum.Font.SourceSansBold
-PlayDot.TextSize = 10
-PlayDot.ZIndex = 5
-PlayDot.Parent = ScreenGui
-
-local UICorner = Instance.new("UICorner")
-UICorner.CornerRadius = UDim.new(1, 0)
-UICorner.Parent = PlayDot
-
--- Logic kéo thả
-local dragging = false
-local dragStart, startPos
-
-PlayDot.InputBegan:Connect(function(input)
-    if not Settings.IsLocked and (input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch) then
-        dragging = true
-        dragStart = input.Position
-        startPos = PlayDot.Position
-        input.Changed:Connect(function()
-            if input.UserInputState == Enum.UserInputState.End then
-                dragging = false
-            end
-        end)
-    end
-end)
-
-UserInputService.InputChanged:Connect(function(input)
-    if dragging and not Settings.IsLocked and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
-        local delta = input.Position - dragStart
-        PlayDot.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
-    end
-end)
-
-PlayDot.InputEnded:Connect(function(input)
-    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-        if dragging then
-            dragging = false
-            local absPos = PlayDot.AbsolutePosition
-            local absSize = PlayDot.AbsoluteSize
-            local centerX = absPos.X + (absSize.X / 2)
-            local centerY = absPos.Y + (absSize.Y / 2)
-            Settings.DotX = centerX / Workspace.CurrentCamera.ViewportSize.X
-            Settings.DotY = centerY / Workspace.CurrentCamera.ViewportSize.Y
-            SaveSettings()
-        end
-    end
-end)
-
--- NÚT BẬT/TẮT MENU (ÉP ZIndex CAO NHẤT ĐỂ KHÔNG BỊ CHẶN)
+-- NÚT MENU
 local ToggleBtn = Instance.new("TextButton")
 ToggleBtn.Size = UDim2.new(0, 45, 0, 45)
 ToggleBtn.Position = UDim2.new(0, 15, 0.3, 0)
@@ -150,15 +84,23 @@ MainFrame.Visible = false
 MainFrame.ZIndex = 9
 MainFrame.Parent = ScreenGui
 
--- Sử dụng .Activated để ăn cảm ứng cực tốt trên Mobile
-ToggleBtn.Activated:Connect(function() 
-    MainFrame.Visible = not MainFrame.Visible 
+-- BẮT SỰ KIỆN CHẠM THÔ (DÙNG CHO TRƯỜNG HỢP EXECUTOR KHÔNG ĂN NÚT)
+UserInputService.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.Touch or input.UserInputType == Enum.UserInputType.MouseButton1 then
+        local pos = input.Position
+        local bPos = ToggleBtn.AbsolutePosition
+        local bSize = ToggleBtn.AbsoluteSize
+        -- Kiểm tra xem điểm bấm có nằm trong khung nút MENU không
+        if pos.X >= bPos.X and pos.X <= bPos.X + bSize.X and pos.Y >= bPos.Y and pos.Y <= bPos.Y + bSize.Y then
+            MainFrame.Visible = not MainFrame.Visible
+        end
+    end
 end)
 
 local Title = Instance.new("TextLabel")
 Title.Size = UDim2.new(1, 0, 0, 30)
 Title.BackgroundColor3 = Color3.fromRGB(30, 30, 42)
-Title.Text = "AUTO EVENT KL V16 (FIX MOBILE TOUCH)"
+Title.Text = "AUTO EVENT KL V10 (RAW TOUCH FIX)"
 Title.TextColor3 = Color3.fromRGB(0, 255, 180)
 Title.Font = Enum.Font.SourceSansBold
 Title.TextSize = 10
@@ -176,31 +118,10 @@ StatusLabel.TextSize = 11
 StatusLabel.ZIndex = 9
 StatusLabel.Parent = MainFrame
 
--- NÚT KHÓA / MỞ KHÓA VỊ TRÍ
-local LockBtn = Instance.new("TextButton")
-LockBtn.Size = UDim2.new(1, -16, 0, 32)
-LockBtn.Position = UDim2.new(0, 8, 0, 65)
-LockBtn.BackgroundColor3 = Settings.IsLocked and Color3.fromRGB(0, 180, 80) or Color3.fromRGB(180, 50, 50)
-LockBtn.Text = Settings.IsLocked and "🔒 KHÓA ĐIỂM NHẤN: ĐANG KHÓA" or "🔓 KHÓA ĐIỂM NHẤN: ĐANG MỞ (CÓ THỂ KÉO)"
-LockBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
-LockBtn.Font = Enum.Font.SourceSansBold
-LockBtn.TextSize = 10
-LockBtn.ZIndex = 9
-LockBtn.Parent = MainFrame
-
-LockBtn.Activated:Connect(function()
-    Settings.IsLocked = not Settings.IsLocked
-    SaveSettings()
-    LockBtn.BackgroundColor3 = Settings.IsLocked and Color3.fromRGB(0, 180, 80) or Color3.fromRGB(180, 50, 50)
-    LockBtn.Text = Settings.IsLocked and "🔒 KHÓA ĐIỂM NHẤN: ĐANG KHÓA" or "🔓 KHÓA ĐIỂM NHẤN: ĐANG MỞ (CÓ THỂ KÉO)"
-    PlayDot.BackgroundColor3 = Settings.IsLocked and Color3.fromRGB(0, 255, 100) or Color3.fromRGB(255, 50, 50)
-    StatusLabel.Text = Settings.IsLocked and "Trạng thái: Đã khóa vị trí hình tròn!" or "Trạng thái: Đã mở khóa hình tròn."
-end)
-
 -- NÚT BẬT / TẮT TỰ ĐỘNG PLAY
 local AutoPlayBtn = Instance.new("TextButton")
 AutoPlayBtn.Size = UDim2.new(1, -16, 0, 32)
-AutoPlayBtn.Position = UDim2.new(0, 8, 0, 102)
+AutoPlayBtn.Position = UDim2.new(0, 8, 0, 68)
 AutoPlayBtn.Font = Enum.Font.SourceSansBold
 AutoPlayBtn.TextSize = 10
 AutoPlayBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
@@ -209,11 +130,11 @@ AutoPlayBtn.Parent = MainFrame
 
 local function UpdateAutoPlayButton()
     AutoPlayBtn.BackgroundColor3 = getgenv().KL_AutoPlayRunning and Color3.fromRGB(0, 180, 80) or Color3.fromRGB(180, 50, 50)
-    AutoPlayBtn.Text = getgenv().KL_AutoPlayRunning and "TỰ ĐỘNG PLAY (TÂM HÌNH TRÒN): BẬT" or "TỰ ĐỘNG PLAY (TÂM HÌNH TRÒN): TẮT"
+    AutoPlayBtn.Text = getgenv().KL_AutoPlayRunning and "TỰ ĐỘNG PLAY (TÂM MÀN HÌNH): BẬT" or "TỰ ĐỘNG PLAY (TÂM MÀN HÌNH): TẮT"
 end
 UpdateAutoPlayButton()
 
-AutoPlayBtn.Activated:Connect(function()
+AutoPlayBtn.MouseButton1Click:Connect(function()
     getgenv().KL_AutoPlayRunning = not getgenv().KL_AutoPlayRunning
     Settings.AutoPlay = getgenv().KL_AutoPlayRunning
     SaveSettings()
@@ -222,7 +143,7 @@ end)
 
 local TimeTextBox = Instance.new("TextBox")
 TimeTextBox.Size = UDim2.new(0.35, 0, 0, 25)
-TimeTextBox.Position = UDim2.new(0.62, 0, 0, 142)
+TimeTextBox.Position = UDim2.new(0.62, 0, 0, 108)
 TimeTextBox.BackgroundColor3 = Color3.fromRGB(45, 45, 65)
 TimeTextBox.Text = tostring(getgenv().KL_HopDelay)
 TimeTextBox.TextColor3 = Color3.fromRGB(0, 255, 180)
@@ -233,7 +154,7 @@ TimeTextBox.Parent = MainFrame
 
 local TimeLabel = Instance.new("TextLabel")
 TimeLabel.Size = UDim2.new(0.6, 0, 0, 25)
-TimeLabel.Position = UDim2.new(0, 8, 0, 142)
+TimeLabel.Position = UDim2.new(0, 8, 0, 108)
 TimeLabel.BackgroundTransparency = 1
 TimeLabel.Text = " Thời gian ở SV (giây):"
 TimeLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
@@ -255,7 +176,7 @@ end)
 
 local AutoHopBtn = Instance.new("TextButton")
 AutoHopBtn.Size = UDim2.new(1, -16, 0, 32)
-AutoHopBtn.Position = UDim2.new(0, 8, 0, 175)
+AutoHopBtn.Position = UDim2.new(0, 8, 0, 142)
 AutoHopBtn.ZIndex = 9
 AutoHopBtn.Parent = MainFrame
 AutoHopBtn.Font = Enum.Font.SourceSansBold
@@ -263,7 +184,7 @@ AutoHopBtn.TextSize = 11
 
 local AutoChestBtn = Instance.new("TextButton")
 AutoChestBtn.Size = UDim2.new(1, -16, 0, 32)
-AutoChestBtn.Position = UDim2.new(0, 8, 0, 215)
+AutoChestBtn.Position = UDim2.new(0, 8, 0, 182)
 AutoChestBtn.ZIndex = 9
 AutoChestBtn.Parent = MainFrame
 AutoChestBtn.Font = Enum.Font.SourceSansBold
@@ -278,33 +199,30 @@ local function UpdateButtons()
 end
 UpdateButtons()
 
--- ================= HÀM KÍCH HOẠT NÚT PLAY =================
-local function ExecutePlayClickAtDot()
+-- ================= HÀM KÍCH HOẠT PLAY BẰNG TỌA ĐỘ CỐ ĐỊNH =================
+local function ExecutePlayAtCenter()
     if not getgenv().KL_AutoPlayRunning then return end
     pcall(function()
         if VirtualInputManager and VirtualInputManager.SendTouchEvent then
-            local absPos = PlayDot.AbsolutePosition
-            local absSize = PlayDot.AbsoluteSize
-            local centerX = absPos.X + (absSize.X / 2)
-            local centerY = absPos.Y + (absSize.Y / 2)
+            local screenSize = Camera.ViewportSize
+            -- Click vào chính giữa màn hình (hoặc điều chỉnh lại tọa độ theo nút Play game)
+            local targetX = screenSize.X / 2
+            local targetY = screenSize.Y / 2 + 100 
             
-            for i = 1, 2 do
-                VirtualInputManager:SendTouchEvent(0, 0, 0, centerX, centerY, game)
-                task.wait(0.03)
-                VirtualInputManager:SendTouchEvent(0, 1, 0, centerX, centerY, game)
-                task.wait(0.05)
-            end
+            VirtualInputManager:SendTouchEvent(0, 0, 0, targetX, targetY, game)
+            task.wait(0.05)
+            VirtualInputManager:SendTouchEvent(0, 1, 0, targetX, targetY, game)
         end
     end)
 end
 
--- ================= VÒNG LẶP KIỂM TRA =================
+-- Vòng lặp kiểm tra tự động bấm Play
 task.spawn(function()
     while true do
         task.wait(1)
         pcall(function()
             if tick() - ServerJoinTick < 12 then
-                ExecutePlayClickAtDot()
+                ExecutePlayAtCenter()
             else
                 local char = LocalPlayer.Character
                 local humanoid = char and char:FindFirstChildOfClass("Humanoid")
@@ -316,7 +234,7 @@ task.spawn(function()
                         Camera.CameraSubject = humanoid
                     end
                 else
-                    ExecutePlayClickAtDot()
+                    ExecutePlayAtCenter()
                 end
             end
         end)
@@ -431,14 +349,14 @@ task.spawn(function()
     end
 end)
 
-AutoHopBtn.Activated:Connect(function()
+AutoHopBtn.MouseButton1Click:Connect(function()
     getgenv().KL_AutoHopRunning = not getgenv().KL_AutoHopRunning
     Settings.AutoHop = getgenv().KL_AutoHopRunning
     SaveSettings()
     UpdateButtons()
 end)
 
-AutoChestBtn.Activated:Connect(function()
+AutoChestBtn.MouseButton1Click:Connect(function()
     getgenv().KL_AutoChestRunning = not getgenv().KL_AutoChestRunning
     Settings.AutoChest = getgenv().KL_AutoChestRunning
     SaveSettings()
