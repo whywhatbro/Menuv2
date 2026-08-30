@@ -1,10 +1,11 @@
 -- =================================================================
--- KING LEGACY - AUTO TOGGLE BROWSER JOIN FIX (BẢN TỐI ƯU SỐ 4)
+-- KING LEGACY - AUTO TOGGLE BROWSER JOIN FIX (BẢN TỐI ƯU CUỐI CÙNG)
 -- =================================================================
 
 local Players = game:GetService("Players")
 local LocalPlayer = Players.LocalPlayer
 local PlayerGui = LocalPlayer:WaitForChild("PlayerGui")
+local VirtualInputManager = game:GetService("VirtualInputManager")
 
 local BossCycles = {
     ["Sea King"] = 3600,
@@ -126,7 +127,7 @@ local function ScanAndFix()
 
                 if timeLeft > 0 and timeLeft <= 300 then
                     count = count + 1
-                    local rowContainer = item.Parent.Parent -- Mở rộng phạm vi tìm kiếm lên cấp cha cao hơn
+                    local originalItemFrame = item.Parent
                     
                     local ServerItem = Instance.new("Frame")
                     ServerItem.Size = UDim2.new(1, 0, 0, 42)
@@ -153,52 +154,23 @@ local function ScanAndFix()
                     JoinBtn.TextSize = 11
                     JoinBtn.Parent = ServerItem
 
-                    JoinBtn.Activated:Connect(function()
+                    -- Giải pháp trực tiếp: Tự động click vào vùng tọa độ của khung server gốc trong bảng game
+                    JoinBtn.MouseButton1Click:Connect(function()
                         JoinBtn.Text = "Đang vào..."
                         
-                        -- Quét toàn bộ các nút bấm có sẵn trong dòng chứa server này
-                        local targetButton = nil
-                        for _, descendant in pairs(rowContainer:GetDescendants()) do
-                            if descendant:IsA("TextButton") then
-                                local btnText = descendant.Text:lower()
-                                if btnText:find("join") or btnText:find("tham gia") or btnText:find("vào") then
-                                    targetButton = descendant
-                                    break
-                                end
-                            end
-                        end
-                        
-                        -- Nếu vẫn không thấy theo chữ, lấy nút TextButton có kích thước tương tự nằm gần dòng giờ
-                        if not targetButton then
-                            for _, descendant in pairs(rowContainer:GetDescendants()) do
-                                if descendant:IsA("TextButton") and descendant ~= JoinBtn then
-                                    targetButton = descendant
-                                    break
-                                end
-                            end
-                        end
-
-                        if targetButton then
-                            local success = pcall(function()
-                                if getconnections then
-                                    for _, conn in pairs(getconnections(targetButton.MouseButton1Click)) do
-                                        conn:Fire()
-                                    end
-                                    for _, conn in pairs(getconnections(targetButton.Activated)) do
-                                        conn:Fire()
-                                    end
-                                end
-                                if firesignal then
-                                    firesignal(targetButton.MouseButton1Click)
-                                end
-                            end)
+                        pcall(function()
+                            -- Tự động bật hiển thị bảng server nếu nó đang bị che
+                            local absPos = originalItemFrame.AbsolutePosition
+                            local absSize = originalItemFrame.AbsoluteSize
                             
-                            if not success then
-                                JoinBtn.Text = "Lỗi kích hoạt!"
-                            end
-                        else
-                            JoinBtn.Text = "Vẫn không thấy nút!"
-                        end
+                            -- Giả lập bấm chuột vào vị trí nút Join gốc ước lượng nằm ở góc phải khung server của game
+                            local clickX = absPos.X + absSize.X - 50
+                            local clickY = absPos.Y + absSize.Y / 2
+                            
+                            VirtualInputManager:SendMouseButtonEvent(clickX, clickY, 0, true, game, 1)
+                            task.wait(0.05)
+                            VirtualInputManager:SendMouseButtonEvent(clickX, clickY, 0, false, game, 1)
+                        end)
                     end)
                 end
             end
