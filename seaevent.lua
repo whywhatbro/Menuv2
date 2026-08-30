@@ -1,5 +1,5 @@
 -- =================================================================
--- KING LEGACY - AUTO RƯƠNG (LOẠI BỎ HOÀN TOÀN HOẠT ẢNH & NHIỆM VỤ)
+-- KING LEGACY - AUTO RƯƠNG (LOẠI BỎ MINIONS & QUÁI VẬT)
 -- =================================================================
 
 local Players = game:GetService("Players")
@@ -15,7 +15,7 @@ local AutoChestRunning = false
 local HopDelay = 15
 
 local ScreenGui = Instance.new("ScreenGui")
-ScreenGui.Name = "KL_ChestFinalFix"
+ScreenGui.Name = "KL_ChestNoMinions"
 ScreenGui.Parent = CoreGui
 
 local ToggleBtn = Instance.new("TextButton")
@@ -43,10 +43,10 @@ end)
 local Title = Instance.new("TextLabel")
 Title.Size = UDim2.new(1, 0, 0, 30)
 Title.BackgroundColor3 = Color3.fromRGB(30, 30, 42)
-Title.Text = "AUTO RƯƠNG CLEAN (FIX HOẠT ẢNH TRÁI)"
+Title.Text = "AUTO RƯƠNG (ĐÃ FIX LỖI MINIONS)"
 Title.TextColor3 = Color3.fromRGB(0, 255, 180)
 Title.Font = Enum.Font.SourceSansBold
-Title.TextSize = 10
+Title.TextSize = 11
 Title.Parent = MainFrame
 
 local TimeBoxContainer = Instance.new("Frame")
@@ -114,7 +114,7 @@ local UIList = Instance.new("UIListLayout")
 UIList.Parent = Scroll
 UIList.Padding = UDim.new(0, 4)
 
--- Bộ lọc siêu sạch: Loại bỏ hoạt ảnh mở trái, gacha, hiệu ứng, thùng nhiệm vụ
+-- Bộ lọc sạch sâu: Loại bỏ hoàn toàn minions, quái vật, hoạt ảnh và nhiệm vụ
 task.spawn(function()
     while true do
         task.wait(0.4)
@@ -127,10 +127,10 @@ task.spawn(function()
                 local name = obj.Name:lower()
                 local parentName = obj.Parent and obj.Parent.Name:lower() or ""
                 
-                -- Kiểm tra xem có phải tên rương báu vật chuẩn không
+                -- Nhận diện đúng rương báu vật chuẩn
                 local isChest = name:find("chest") or name:find("treasure")
                 
-                -- Danh sách từ khóa loại trừ tuyệt đối (bao gồm cả hoạt ảnh, hiệu ứng, gacha, nhiệm vụ)
+                -- Danh sách từ khóa loại trừ chi tiết (Thêm cả Minions, Mobs, Kẻ địch)
                 local isExcluded = name:find("seaking") 
                     or name:find("hydra") 
                     or name:find("boss") 
@@ -145,10 +145,19 @@ task.spawn(function()
                     or name:find("anim")
                     or name:find("visual")
                     or name:find("fx")
+                    or name:find("minion")
+                    or name:find("mob")
+                    or name:find("enemy")
+                    or name:find("pirate")
+                    or name:find("marine")
+                    or name:find("bandit")
+                    or name:find("soldier")
                     or parentName:find("quest")
                     or parentName:find("daily")
                     or parentName:find("gacha")
                     or parentName:find("effect")
+                    or parentName:find("minion")
+                    or parentName:find("mob")
                 
                 if isChest and not isExcluded then
                     local part = nil
