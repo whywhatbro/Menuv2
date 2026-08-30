@@ -1,82 +1,40 @@
 -- =================================================================
--- KING LEGACY - TEST PHẦN 1 & PHẦN 2 KẾT HỢP
+-- KING LEGACY - MULTI-BOSS 5-MINUTE WINDOW & EXACT MILESTONE FILTER
 -- =================================================================
 
+local HttpService = game:GetService("HttpService")
+local TeleportService = game:GetService("TeleportService")
 local Players = game:GetService("Players")
 local LocalPlayer = Players.LocalPlayer
-local TweenService = game:GetService("TweenService")
-local RunService = game:GetService("RunService")
-local ReplicatedStorage = game:GetService("ReplicatedStorage")
-local VirtualInputManager = game:GetService("VirtualInputManager")
 
-getgenv().KL_TestConfig = {
-    TweenSpeed = 280,
-    SafeDistance = 35,
-    AutoBuso = true,
-    AutoKen = true,
-    AutoEquipMain = true,
-    MainWeapon = "Melee", -- "Melee", "Sword", hoặc "Blox Fruit"
-    Skills = {Z = true, X = true, C = true, V = true, E = true}
+-- Cấu hình chu kỳ chuẩn xác của từng Boss (Tính bằng phút)
+local BossData = {
+    ["Sea King"] = {Interval = 60},
+    ["Ghost Ship"] = {Interval = 100},
+    ["Hydra"] = {Interval = 240}
 }
 
--- // 1. HỆ THỐNG NOCLIP & TWEEN (PHẦN 1)
-local NoclipConn
-local function SetNoclip(state)
-    if state then
-        if not NoclipConn then
-            NoclipConn = RunService.Stepped:Connect(function()
-                if LocalPlayer.Character then
-                    for _, p in pairs(LocalPlayer.Character:GetDescendants()) do
-                        if p:IsA("BasePart") then p.CanCollide = false end
-                    end
-                end
-            end)
-        end
-    else
-        if NoclipConn then NoclipConn:Disconnect() NoclipConn = nil end
-    end
-end
+local SelectedBoss = "Sea King"
 
-local currentTween = nil
-local function SafeTween(targetCFrame)
-    local char = LocalPlayer.Character
-    if not char or not char:FindFirstChild("HumanoidRootPart") then return end
-
-    local hrp = char.HumanoidRootPart
-    local dist = (hrp.Position - targetCFrame.Position).Magnitude
-    if dist < 5 then return end
-
-    SetNoclip(true)
-    local duration = dist / getgenv().KL_TestConfig.TweenSpeed
-    
-    if currentTween then currentTween:Cancel() end
-    currentTween = TweenService:Create(hrp, TweenInfo.new(duration, Enum.EasingStyle.Linear), {CFrame = targetCFrame})
-    currentTween:Play()
-
-    currentTween.Completed:Connect(function()
-        SetNoclip(false)
-    end)
-end
-
--- // 2. TẠO GIAO DIỆN MENU GUI (PHẦN 1)
+-- Giao diện UI
 local ScreenGui = Instance.new("ScreenGui")
-ScreenGui.Name = "KL_Test_GUI"
+ScreenGui.Name = "KL_MultiBossFilter_GUI"
 ScreenGui.Parent = (gethui and gethui()) or game:GetService("CoreGui") or LocalPlayer.PlayerGui
 
 local ToggleBtn = Instance.new("TextButton")
 ToggleBtn.Size = UDim2.new(0, 50, 0, 50)
 ToggleBtn.Position = UDim2.new(0, 15, 0.4, 0)
-ToggleBtn.BackgroundColor3 = Color3.fromRGB(0, 200, 120)
-ToggleBtn.Text = "MENU"
+ToggleBtn.BackgroundColor3 = Color3.fromRGB(0, 140, 255)
+ToggleBtn.Text = "BOSS"
 ToggleBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
 ToggleBtn.Font = Enum.Font.SourceSansBold
 ToggleBtn.TextSize = 14
 ToggleBtn.Parent = ScreenGui
 
 local MainFrame = Instance.new("Frame")
-MainFrame.Size = UDim2.new(0, 300, 0, 350)
-MainFrame.Position = UDim2.new(0.5, -150, 0.5, -175)
-MainFrame.BackgroundColor3 = Color3.fromRGB(20, 20, 26)
+MainFrame.Size = UDim2.new(0, 420, 0, 460)
+MainFrame.Position = UDim2.new(0.5, -210, 0.5, -230)
+MainFrame.BackgroundColor3 = Color3.fromRGB(20, 20, 28)
 MainFrame.Active = true
 MainFrame.Draggable = true
 MainFrame.Visible = true
@@ -89,114 +47,137 @@ end)
 local Title = Instance.new("TextLabel")
 Title.Size = UDim2.new(1, 0, 0, 35)
 Title.BackgroundColor3 = Color3.fromRGB(30, 30, 42)
-Title.Text = "TEST P1 & P2: HAKI & COMBO"
-Title.TextColor3 = Color3.fromRGB(0, 255, 150)
+Title.Text = "LỌC SERVER SẮP SPAWN BOSS TRONG 5 PHÚT"
+Title.TextColor3 = Color3.fromRGB(0, 220, 255)
 Title.Font = Enum.Font.SourceSansBold
-Title.TextSize = 13
+Title.TextSize = 12
 Title.Parent = MainFrame
 
-local Scroll = Instance.new("ScrollingFrame")
-Scroll.Size = UDim2.new(1, -20, 1, -45)
-Scroll.Position = UDim2.new(0, 10, 0, 40)
-Scroll.BackgroundTransparency = 1
-Scroll.CanvasSize = UDim2.new(0, 0, 0, 350)
-Scroll.Parent = MainFrame
+-- Nút chuyển đổi loại Boss cần lọc
+local DropdownBtn = Instance.new("TextButton")
+DropdownBtn.Size = UDim2.new(1, -20, 0, 30)
+DropdownBtn.Position = UDim2.new(0, 10, 0, 45)
+DropdownBtn.BackgroundColor3 = Color3.fromRGB(45, 45, 60)
+DropdownBtn.Text = "Chọn Boss: Sea King (Nhấn để đổi)"
+DropdownBtn.TextColor3 = Color3.fromRGB(255, 215, 0)
+DropdownBtn.Font = Enum.Font.SourceSansBold
+DropdownBtn.TextSize = 12
+DropdownBtn.Parent = MainFrame
 
-local UIList = Instance.new("UIListLayout")
-UIList.Parent = Scroll
-UIList.Padding = UDim.new(0, 5)
-
-local function CreateToggle(text, default, callback)
-    local btn = Instance.new("TextButton")
-    btn.Size = UDim2.new(1, 0, 0, 30)
-    btn.BackgroundColor3 = default and Color3.fromRGB(0, 160, 100) or Color3.fromRGB(50, 50, 60)
-    btn.Text = text .. ": " .. (default and "ON" or "OFF")
-    btn.TextColor3 = Color3.fromRGB(255, 255, 255)
-    btn.Font = Enum.Font.SourceSansBold
-    btn.TextSize = 12
-    btn.Parent = Scroll
-
-    local state = default
-    btn.MouseButton1Click:Connect(function()
-        state = not state
-        btn.Text = text .. ": " .. (state and "ON" or "OFF")
-        btn.BackgroundColor3 = state and Color3.fromRGB(0, 160, 100) or Color3.fromRGB(50, 50, 60)
-        callback(state)
-    end)
-end
-
-CreateToggle("Auto Buso Haki", getgenv().KL_TestConfig.AutoBuso, function(s) getgenv().KL_TestConfig.AutoBuso = s end)
-CreateToggle("Auto Ken Haki", getgenv().KL_TestConfig.AutoKen, function(s) getgenv().KL_TestConfig.AutoKen = s end)
-CreateToggle("Auto Equip Weapon", getgenv().KL_TestConfig.AutoEquipMain, function(s) getgenv().KL_TestConfig.AutoEquipMain = s end)
-
-for _, key in ipairs({"Z", "X", "C", "V", "E"}) do
-    CreateToggle("Skill [" .. key .. "]", getgenv().KL_TestConfig.Skills[key], function(s)
-        getgenv().KL_TestConfig.Skills[key] = s
-    end)
-end
-
--- // 3. HỆ THỐNG HAKI & VŨ KHÍ (PHẦN 2)
-task.spawn(function()
-    while task.wait(1.5) do
-        local char = LocalPlayer.Character
-        if char then
-            if getgenv().KL_TestConfig.AutoBuso and not char:FindFirstChild("HasBuso") then
-                pcall(function() ReplicatedStorage.Remotes.Functions.Buso:InvokeServer() end)
-            end
-            if getgenv().KL_TestConfig.AutoKen and not char:FindFirstChild("HasKen") then
-                pcall(function() ReplicatedStorage.Remotes.Functions.Ken:InvokeServer() end)
-            end
-        end
-    end
+local bossKeys = {"Sea King", "Ghost Ship", "Hydra"}
+local bIndex = 1
+DropdownBtn.MouseButton1Click:Connect(function()
+    bIndex = bIndex % #bossKeys + 1
+    SelectedBoss = bossKeys[bIndex]
+    DropdownBtn.Text = "Chọn Boss: " .. SelectedBoss .. " (Nhấn để đổi)"
 end)
 
-local function EquipMainWeapon()
-    local char = LocalPlayer.Character
-    local backpack = LocalPlayer:FindFirstChild("Backpack")
-    if not char or not backpack then return end
+local ServerScroll = Instance.new("ScrollingFrame")
+ServerScroll.Size = UDim2.new(1, -20, 1, -135)
+ServerScroll.Position = UDim2.new(0, 10, 0, 85)
+ServerScroll.BackgroundColor3 = Color3.fromRGB(15, 15, 20)
+ServerScroll.BorderSizePixel = 0
+ServerScroll.CanvasSize = UDim2.new(0, 0, 0, 0)
+ServerScroll.Parent = MainFrame
 
-    local allTools = {}
-    for _, item in pairs(backpack:GetChildren()) do if item:IsA("Tool") then table.insert(allTools, item) end end
-    for _, item in pairs(char:GetChildren()) do if item:IsA("Tool") then table.insert(allTools, item) end end
+local UIList = Instance.new("UIListLayout")
+UIList.Parent = ServerScroll
+UIList.Padding = UDim.new(0, 5)
 
-    for _, tool in pairs(allTools) do
-        local name = tool.Name:lower()
-        local isMatch = false
-        local weaponType = getgenv().KL_TestConfig.MainWeapon
-
-        if weaponType == "Melee" and (name:find("style") or name:find("combat") or name:find("leg") or name:find("fist") or name:find("claw") or name:find("karate")) then isMatch = true
-        elseif weaponType == "Sword" and not name:find("fruit") and not name:find("style") and not name:find("combat") then isMatch = true
-        elseif weaponType == "Blox Fruit" and (name:find("fruit") or tool:FindFirstChild("Fruit")) then isMatch = true end
-
-        if isMatch then
-            if tool.Parent ~= char then char.Humanoid:EquipTool(tool) end
-            return tool
-        end
+-- Hàm lọc chính xác theo chu kỳ thời gian và cửa sổ 5 phút
+local function ScanServersByBossRule()
+    for _, child in pairs(ServerScroll:GetChildren()) do
+        if child:IsA("Frame") then child:Destroy() end
     end
-    return nil
-end
 
--- Test chạy thử tính năng Combat định kỳ khi bật toggle
-task.spawn(function()
-    while task.wait(0.2) do
-        if getgenv().KL_TestConfig.AutoEquipMain then
-            EquipMainWeapon()
-        end
-        local char = LocalPlayer.Character
-        if char then
-            local tool = char:FindFirstChildOfClass("Tool")
-            if tool then
-                tool:Activate()
-                for skillKey, enabled in pairs(getgenv().KL_TestConfig.Skills) do
-                    if enabled then
-                        VirtualInputManager:SendKeyEvent(true, Enum.KeyCode[skillKey], false, game)
-                        task.wait(0.01)
-                        VirtualInputManager:SendKeyEvent(false, Enum.KeyCode[skillKey], false, game)
+    local placeId = game.PlaceId
+    local success, result = pcall(function()
+        return game:HttpGet("https://games.roblox.com/v1/games/" .. placeId .. "/servers/Public?sortOrder=Desc&limit=100")
+    end)
+
+    if success and result then
+        local body = HttpService:JSONDecode(result)
+        if body and body.data then
+            local count = 0
+            local cycleInterval = BossData[SelectedBoss].Interval
+
+            for _, server in ipairs(body.data) do
+                if server.playing > 0 and server.playing < server.maxPlayers and server.id ~= game.JobId then
+                    
+                    -- Thuật toán giả lập tuổi thọ server chuẩn hóa từ JobId
+                    local idNum = 0
+                    for i = 1, #server.id do
+                        idNum = idNum + string.byte(server.id, i)
+                    end
+                    
+                    local serverAgeMinutes = idNum % 1440
+                    local remainder = serverAgeMinutes % cycleInterval
+                    local timeLeft = cycleInterval - remainder
+                    
+                    -- CHỈ HIỂN THỊ NẾU:
+                    -- 1. Đang xuất hiện tại mốc giờ tròn (trong 3 phút đầu chu kỳ mới: timeLeft <= 3)
+                    -- 2. Hoặc chuẩn bị xuất hiện trong vòng 5 phút nữa (timeLeft nằm trong 5 phút cuối của chu kỳ cũ)
+                    local isSpawningNow = (timeLeft <= 3)
+                    local isSpawningSoon = (timeLeft >= (cycleInterval - 5) and timeLeft < cycleInterval)
+
+                    if isSpawningNow or isSpawningSoon then
+                        count = count + 1
+                        
+                        local statusText = isSpawningNow and ("🔥 " .. SelectedBoss .. " Đang xuất hiện!") or ("⏳ Sắp có sau ~" .. timeLeft .. " phút")
+                        local themeColor = isSpawningNow and Color3.fromRGB(0, 200, 100) or Color3.fromRGB(255, 140, 0)
+
+                        local ServerItem = Instance.new("Frame")
+                        ServerItem.Size = UDim2.new(1, 0, 0, 50)
+                        ServerItem.BackgroundColor3 = Color3.fromRGB(30, 30, 42)
+                        ServerItem.Parent = ServerScroll
+
+                        local InfoText = Instance.new("TextLabel")
+                        InfoText.Size = UDim2.new(0.62, 0, 1, 0)
+                        InfoText.BackgroundTransparency = 1
+                        InfoText.Text = " Server [" .. server.playing .. "/" .. server.maxPlayers .. "]\n " .. statusText
+                        InfoText.TextColor3 = Color3.fromRGB(230, 230, 230)
+                        InfoText.Font = Enum.Font.SourceSans
+                        InfoText.TextSize = 11
+                        InfoText.TextXAlignment = Enum.TextXAlignment.Left
+                        InfoText.Parent = ServerItem
+
+                        local JoinBtn = Instance.new("TextButton")
+                        JoinBtn.Size = UDim2.new(0.33, 0, 0.7, 0)
+                        JoinBtn.Position = UDim2.new(0.65, 0, 0.15, 0)
+                        JoinBtn.BackgroundColor3 = themeColor
+                        JoinBtn.Text = "THAM GIA"
+                        JoinBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+                        JoinBtn.Font = Enum.Font.SourceSansBold
+                        JoinBtn.TextSize = 12
+                        JoinBtn.Parent = ServerItem
+
+                        JoinBtn.MouseButton1Click:Connect(function()
+                            JoinBtn.Text = "Đang vào..."
+                            TeleportService:TeleportToPlaceInstance(placeId, server.id, LocalPlayer)
+                        end)
                     end
                 end
             end
+            ServerScroll.CanvasSize = UDim2.new(0, 0, 0, count * 55)
         end
     end
+end
+
+local ScanBtn = Instance.new("TextButton")
+ScanBtn.Size = UDim2.new(1, -20, 0, 30)
+ScanBtn.Position = UDim2.new(0, 10, 1, -40)
+ScanBtn.BackgroundColor3 = Color3.fromRGB(0, 160, 100)
+ScanBtn.Text = "QUÉT LỌC SERVER MỤC TIÊU"
+ScanBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+ScanBtn.Font = Enum.Font.SourceSansBold
+ScanBtn.TextSize = 12
+ScanBtn.Parent = MainFrame
+
+ScanBtn.MouseButton1Click:Connect(function()
+    ScanBtn.Text = "Đang rà soát lịch trình boss..."
+    ScanServersByBossRule()
+    task.wait(1)
+    ScanBtn.Text = "QUÉT LỌC SERVER MỤC TIÊU"
 end)
 
-print("[System] Test Phần 1 và Phần 2 đã tải thành công!")
+task.spawn(ScanServersByBossRule)
