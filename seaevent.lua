@@ -1,5 +1,5 @@
 -- =================================================================
--- KING LEGACY - V9 PRO (QUÉT LIÊN TỤC CHỜ NÚT PLAY & KHUNG XANH)
+-- KING LEGACY - V10 PRO (QUÉT SÂU + NÚT BẤM THỦ CÔNG TRỰC TIẾP)
 -- =================================================================
 
 local Players = game:GetService("Players")
@@ -52,12 +52,64 @@ TeleportService.TeleportInitFailed:Connect(function(player, teleportResult, erro
     end
 end)
 
--- ================= 1. AUTO PLAY LIÊN TỤC CHỜ NÚT XUẤT HIỆN =================
+-- ================= HÀM KÍCH HOẠT NÚT PLAY THÔNG MINH =================
+local function TriggerPlayButton()
+    local successCount = 0
+    local playerGui = LocalPlayer:FindFirstChild("PlayerGui")
+    if playerGui then
+        for _, gui in pairs(playerGui:GetDescendants()) do
+            if (gui:IsA("TextButton") or gui:IsA("ImageButton")) and gui.Visible and gui.AbsolutePosition.X > 0 then
+                local matched = false
+                local name = string.lower(gui.Name)
+                
+                -- Kiểm tra tên nút hoặc text trực tiếp
+                if string.find(name, "play") or string.find(name, "start") or string.find(name, "pirate") or string.find(name, "marine") then
+                    matched = true
+                else
+                    -- Quét sâu vào các chữ cái (TextLabel/TextBox) bên trong nút đó
+                    for _, child in pairs(gui:GetDescendants()) do
+                        if child:IsA("TextLabel") or child:IsA("TextBox") then
+                            local cText = string.lower(child.Text)
+                            if string.find(cText, "play") or string.find(cText, "start") or string.find(cText, "pirate") or string.find(cText, "marine") then
+                                matched = true
+                                break
+                            end
+                        end
+                    end
+                end
+                
+                if matched then
+                    successCount = successCount + 1
+                    pcall(function() GuiService.SelectedObject = gui end)
+                    task.wait(0.02)
+                    pcall(function() gui:Activate() end)
+                    pcall(function()
+                        if getconnections then
+                            for _, conn in pairs(getconnections(gui.MouseButton1Click)) do conn:Fire() end
+                            for _, conn in pairs(getconnections(gui.Activated)) do conn:Fire() end
+                        end
+                    end)
+                    pcall(function()
+                        if VirtualInputManager and VirtualInputManager.SendTouchEvent then
+                            local cx = gui.AbsolutePosition.X + (gui.AbsoluteSize.X / 2)
+                            local cy = gui.AbsolutePosition.Y + (gui.AbsoluteSize.Y / 2)
+                            VirtualInputManager:SendTouchEvent(0, 0, 0, cx, cy, game)
+                            task.wait(0.02)
+                            VirtualInputManager:SendTouchEvent(0, 1, 0, cx, cy, game)
+                        end
+                    end)
+                end
+            end
+        end
+    end
+    return successCount
+end
+
+-- Tự động quét liên tục ngầm
 task.spawn(function()
     while true do
-        task.wait(0.5) -- Quét nhanh mỗi nửa giây để bắt nút Play ngay khi nó hiện lên
+        task.wait(0.5)
         pcall(function()
-            -- Nếu nhân vật đã có trên map thì không cần bấm Play nữa
             if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") and LocalPlayer.Character:FindFirstChildOfClass("Humanoid").Health > 0 then
                 if Camera.CameraSubject ~= LocalPlayer.Character:FindFirstChildOfClass("Humanoid") then
                     Camera.CameraSubject = LocalPlayer.Character:FindFirstChildOfClass("Humanoid")
@@ -65,43 +117,14 @@ task.spawn(function()
                 end
                 return
             end
-
-            local playerGui = LocalPlayer:FindFirstChild("PlayerGui")
-            if playerGui then
-                for _, gui in pairs(playerGui:GetDescendants()) do
-                    if (gui:IsA("TextButton") or gui:IsA("ImageButton")) and gui.Visible and gui.AbsolutePosition.X > 0 then
-                        local text = gui:IsA("TextButton") and string.lower(gui.Text) or ""
-                        local name = string.lower(gui.Name)
-                        
-                        if string.find(name, "play") or string.find(text, "play") or 
-                           string.find(name, "start") or string.find(text, "start") then
-                            
-                            -- Đưa khung xanh viền vào nút
-                            GuiService.SelectedObject = gui
-                            task.wait(0.1)
-                            
-                            -- Giả lập phím Enter để kích hoạt nút đang được chọn
-                            if VirtualInputManager then
-                                VirtualInputManager:SendKeyEvent(true, Enum.KeyCode.Return, false, game)
-                                task.wait(0.05)
-                                VirtualInputManager:SendKeyEvent(false, Enum.KeyCode.Return, false, game)
-                            end
-                            
-                            pcall(function() gui:Activate() end)
-                            if getconnections then
-                                for _, conn in pairs(getconnections(gui.MouseButton1Click)) do conn:Fire() end
-                            end
-                        end
-                    end
-                end
-            end
+            TriggerPlayButton()
         end)
     end
 end)
 
 -- ================= GIAO DIỆN MENU =================
 local ScreenGui = Instance.new("ScreenGui")
-ScreenGui.Name = "KL_MobileMasterGui_V9"
+ScreenGui.Name = "KL_MobileMasterGui_V10"
 ScreenGui.Parent = CoreGui
 
 local ToggleBtn = Instance.new("TextButton")
@@ -115,8 +138,8 @@ ToggleBtn.TextSize = 11
 ToggleBtn.Parent = ScreenGui
 
 local MainFrame = Instance.new("Frame")
-MainFrame.Size = UDim2.new(0, 360, 0, 420)
-MainFrame.Position = UDim2.new(0.5, -180, 0.5, -210)
+MainFrame.Size = UDim2.new(0, 360, 0, 440)
+MainFrame.Position = UDim2.new(0.5, -180, 0.5, -220)
 MainFrame.BackgroundColor3 = Color3.fromRGB(20, 20, 28)
 MainFrame.Active = true
 MainFrame.Draggable = true
@@ -127,7 +150,7 @@ ToggleBtn.MouseButton1Click:Connect(function() MainFrame.Visible = not MainFrame
 local Title = Instance.new("TextLabel")
 Title.Size = UDim2.new(1, 0, 0, 30)
 Title.BackgroundColor3 = Color3.fromRGB(30, 30, 42)
-Title.Text = "AUTO EVENT KL V9 (DELAY PLAY CHECK)"
+Title.Text = "AUTO EVENT KL V10 (MANUAL PLAY)"
 Title.TextColor3 = Color3.fromRGB(0, 255, 180)
 Title.Font = Enum.Font.SourceSansBold
 Title.TextSize = 10
@@ -143,9 +166,31 @@ StatusLabel.Font = Enum.Font.SourceSans
 StatusLabel.TextSize = 11
 StatusLabel.Parent = MainFrame
 
+-- NÚT BẤM PLAY THỦ CÔNG
+local ForcePlayBtn = Instance.new("TextButton")
+ForcePlayBtn.Size = UDim2.new(1, -16, 0, 35)
+ForcePlayBtn.Position = UDim2.new(0, 8, 0, 68)
+ForcePlayBtn.BackgroundColor3 = Color3.fromRGB(220, 120, 0)
+ForcePlayBtn.Text = "👉 BẤM NÚT PLAY NGAY (NHẤN VÀO ĐÂY)"
+ForcePlayBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+ForcePlayBtn.Font = Enum.Font.SourceSansBold
+ForcePlayBtn.TextSize = 11
+ForcePlayBtn.Parent = MainFrame
+
+ForcePlayBtn.MouseButton1Click:Connect(function()
+    local count = TriggerPlayButton()
+    if count > 0 then
+        StatusLabel.Text = "Trạng thái: Đã gửi lệnh bấm Play ("..count..")!"
+        StatusLabel.TextColor3 = Color3.fromRGB(0, 255, 100)
+    else
+        StatusLabel.Text = "Trạng thái: Không tìm thấy nút Play trên màn hình!"
+        StatusLabel.TextColor3 = Color3.fromRGB(255, 100, 100)
+    end
+end)
+
 local TimeTextBox = Instance.new("TextBox")
 TimeTextBox.Size = UDim2.new(0.35, 0, 0, 25)
-TimeTextBox.Position = UDim2.new(0.62, 0, 0, 68)
+TimeTextBox.Position = UDim2.new(0.62, 0, 0, 110)
 TimeTextBox.BackgroundColor3 = Color3.fromRGB(45, 45, 65)
 TimeTextBox.Text = tostring(getgenv().KL_HopDelay)
 TimeTextBox.TextColor3 = Color3.fromRGB(0, 255, 180)
@@ -155,7 +200,7 @@ TimeTextBox.Parent = MainFrame
 
 local TimeLabel = Instance.new("TextLabel")
 TimeLabel.Size = UDim2.new(0.6, 0, 0, 25)
-TimeLabel.Position = UDim2.new(0, 8, 0, 68)
+TimeLabel.Position = UDim2.new(0, 8, 0, 110)
 TimeLabel.BackgroundTransparency = 1
 TimeLabel.Text = " Thời gian ở SV (giây):"
 TimeLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
@@ -176,14 +221,14 @@ end)
 
 local AutoHopBtn = Instance.new("TextButton")
 AutoHopBtn.Size = UDim2.new(1, -16, 0, 32)
-AutoHopBtn.Position = UDim2.new(0, 8, 0, 104)
+AutoHopBtn.Position = UDim2.new(0, 8, 0, 146)
 AutoHopBtn.Parent = MainFrame
 AutoHopBtn.Font = Enum.Font.SourceSansBold
 AutoHopBtn.TextSize = 11
 
 local AutoChestBtn = Instance.new("TextButton")
 AutoChestBtn.Size = UDim2.new(1, -16, 0, 32)
-AutoChestBtn.Position = UDim2.new(0, 8, 0, 141)
+AutoChestBtn.Position = UDim2.new(0, 8, 0, 184)
 AutoChestBtn.Parent = MainFrame
 AutoChestBtn.Font = Enum.Font.SourceSansBold
 AutoChestBtn.TextSize = 11
