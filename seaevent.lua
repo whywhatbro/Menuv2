@@ -1,5 +1,5 @@
 -- =================================================================
--- KING LEGACY - V12 PRO (TÙY CHỈNH TỌA ĐỘ NÚT PLAY + ẨN MENU BAN ĐẦU)
+-- KING LEGACY - V13 PRO (FIX TỰ ĐỘNG NHẤN TỌA ĐỘ KHI ĐỔI SERVER)
 -- =================================================================
 
 local Players = game:GetService("Players")
@@ -14,8 +14,11 @@ local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
 local Camera = Workspace.CurrentCamera
 
+-- Biến đánh dấu thời điểm vừa vào server (dùng để ép bấm nút Play trong 15s đầu)
+local ServerJoinTick = tick()
+
 -- ================= HỆ THỐNG LƯU CÀI ĐẶT =================
-local SettingsFile = "KingLegacy_AutoChest_Settings_V12.json"
+local SettingsFile = "KingLegacy_AutoChest_Settings_V13.json"
 local Settings = { 
     AutoHop = false, 
     AutoChest = false, 
@@ -62,15 +65,12 @@ TeleportService.TeleportInitFailed:Connect(function(player, teleportResult, erro
     end
 end)
 
--- ================= HÀM KÍCH HOẠT NÚT PLAY (HỖ TRỢ TỌA ĐỘ CÁ NHÂN HÓA) =================
+-- ================= HÀM KÍCH HOẠT NÚT PLAY THEO TỌA ĐỘ =================
 local function ExecutePlayClick()
     local success = false
-    
-    -- Nếu người dùng đã tự lưu tọa độ, ưu tiên dùng tọa độ cá nhân hóa (Click đa điểm nếu kẹt)
     if Settings.PlayX > 0 and Settings.PlayY > 0 then
         pcall(function()
             if VirtualInputManager and VirtualInputManager.SendTouchEvent then
-                -- Nhấn nhiều lần liên tiếp để đảm bảo nhận diện
                 for i = 1, 3 do
                     VirtualInputManager:SendTouchEvent(0, 0, 0, Settings.PlayX, Settings.PlayY, game)
                     task.wait(0.03)
@@ -81,7 +81,7 @@ local function ExecutePlayClick()
             end
         end)
     else
-        -- Fallback quét tự động cũ nếu chưa đặt tọa độ
+        -- Fallback quét giao diện nếu chưa đặt tọa độ
         local playerGui = LocalPlayer:FindFirstChild("PlayerGui")
         if playerGui then
             for _, gui in pairs(playerGui:GetDescendants()) do
@@ -104,12 +104,6 @@ local function ExecutePlayClick()
                     if matched then
                         success = true
                         pcall(function() gui:Activate() end)
-                        pcall(function()
-                            if getconnections then
-                                for _, conn in pairs(getconnections(gui.MouseButton1Click)) do conn:Fire() end
-                                for _, conn in pairs(getconnections(gui.Activated)) do conn:Fire() end
-                            end
-                        end)
                     end
                 end
             end
@@ -118,41 +112,36 @@ local function ExecutePlayClick()
     return success
 end
 
--- Kiểm tra xem có đang bị kẹt ở sảnh / màn hình chờ không
-local function IsStuckAtLobby()
-    local char = LocalPlayer.Character
-    local humanoid = char and char:FindFirstChildOfClass("Humanoid")
-    if not char or not humanoid or humanoid.Health <= 0 then
-        return true
-    end
-    return false
-end
-
--- Vòng lặp ngầm kiểm tra và tự động bấm nút Play nếu kẹt
+-- ================= VÒNG LẶP KIỂM TRA & ÉP BẤM PLAY KHI VÀO SERVER =================
 task.spawn(function()
     while true do
-        task.wait(0.8)
+        task.wait(1)
         pcall(function()
-            local char = LocalPlayer.Character
-            local humanoid = char and char:FindFirstChildOfClass("Humanoid")
-            local hrp = char and char:FindFirstChild("HumanoidRootPart")
-            
-            if char and humanoid and hrp and humanoid.Health > 0 then
-                if Camera.CameraSubject ~= humanoid or Camera.CameraType ~= Enum.CameraType.Custom then
-                    Camera.CameraType = Enum.CameraType.Custom
-                    Camera.CameraSubject = humanoid
-                end
-            else
-                -- Kẹt sảnh -> Tiến hành gọi lệnh click Play
+            -- Nếu vừa vào server chưa đến 15 giây, ép bấm liên tục tọa độ Play
+            if tick() - ServerJoinTick < 15 then
                 ExecutePlayClick()
+            else
+                -- Sau 15 giây kiểm tra trạng thái nhân vật bình thường
+                local char = LocalPlayer.Character
+                local humanoid = char and char:FindFirstChildOfClass("Humanoid")
+                local hrp = char and char:FindFirstChild("HumanoidRootPart")
+                
+                if char and humanoid and hrp and humanoid.Health > 0 then
+                    if Camera.CameraSubject ~= humanoid or Camera.CameraType ~= Enum.CameraType.Custom then
+                        Camera.CameraType = Enum.CameraType.Custom
+                        Camera.CameraSubject = humanoid
+                    end
+                else
+                    ExecutePlayClick()
+                end
             end
         end)
     end
 end)
 
--- ================= GIAO DIỆN MENU (ẨN SẴN BAN ĐẦU) =================
+-- ================= GIAO DIỆN MENU (ẨN BAN ĐẦU) =================
 local ScreenGui = Instance.new("ScreenGui")
-ScreenGui.Name = "KL_MobileMasterGui_V12"
+ScreenGui.Name = "KL_MobileMasterGui_V13"
 ScreenGui.Parent = CoreGui
 
 local ToggleBtn = Instance.new("TextButton")
@@ -171,7 +160,7 @@ MainFrame.Position = UDim2.new(0.5, -180, 0.5, -235)
 MainFrame.BackgroundColor3 = Color3.fromRGB(20, 20, 28)
 MainFrame.Active = true
 MainFrame.Draggable = true
-MainFrame.Visible = false -- KHỞI ĐỘNG ẨN GỌN GÀNG TRONG NÚT BẬT TẮT
+MainFrame.Visible = false
 MainFrame.Parent = ScreenGui
 
 ToggleBtn.MouseButton1Click:Connect(function() MainFrame.Visible = not MainFrame.Visible end)
@@ -179,7 +168,7 @@ ToggleBtn.MouseButton1Click:Connect(function() MainFrame.Visible = not MainFrame
 local Title = Instance.new("TextLabel")
 Title.Size = UDim2.new(1, 0, 0, 30)
 Title.BackgroundColor3 = Color3.fromRGB(30, 30, 42)
-Title.Text = "AUTO EVENT KL V12 (CUSTOM PLAY COORD)"
+Title.Text = "AUTO EVENT KL V13 (FIX HOP AUTO CLICK)"
 Title.TextColor3 = Color3.fromRGB(0, 255, 180)
 Title.Font = Enum.Font.SourceSansBold
 Title.TextSize = 10
@@ -195,7 +184,6 @@ StatusLabel.Font = Enum.Font.SourceSans
 StatusLabel.TextSize = 11
 StatusLabel.Parent = MainFrame
 
--- NÚT CÀI ĐẶT TỌA ĐỘ NÚT PLAY THỦ CÔNG
 local SetCoordBtn = Instance.new("TextButton")
 SetCoordBtn.Size = UDim2.new(1, -16, 0, 35)
 SetCoordBtn.Position = UDim2.new(0, 8, 0, 68)
@@ -210,7 +198,7 @@ local CoordInfoLabel = Instance.new("TextLabel")
 CoordInfoLabel.Size = UDim2.new(1, -16, 0, 20)
 CoordInfoLabel.Position = UDim2.new(0, 8, 0, 105)
 CoordInfoLabel.BackgroundTransparency = 1
-CoordInfoLabel.Text = (Settings.PlayX > 0 and "Đã lưu tọa độ: X="..math.floor(Settings.PlayX).." Y="..math.floor(Settings.PlayY)) or "Tọa độ nút Play: Chưa thiết lập (Đang dùng quét tự động)"
+CoordInfoLabel.Text = (Settings.PlayX > 0 and "Đã lưu tọa độ: X="..math.floor(Settings.PlayX).." Y="..math.floor(Settings.PlayY)) or "Tọa độ nút Play: Chưa thiết lập"
 CoordInfoLabel.TextColor3 = Color3.fromRGB(150, 255, 150)
 CoordInfoLabel.Font = Enum.Font.SourceSans
 CoordInfoLabel.TextSize = 10
@@ -295,11 +283,9 @@ local function GetValidChests(hrpPosition)
         local name = string.lower(obj.Name)
         if (string.find(name, "chest") or string.find(name, "reward")) then
             local isIgnored = false
-            
             if string.find(name, "gacha") or string.find(name, "fruit") or string.find(name, "barrel") or string.find(name, "crate") or string.find(name, "box") then
                 isIgnored = true
             end
-            
             if not isIgnored then
                 local current = obj.Parent
                 while current and current ~= Workspace do
@@ -315,18 +301,15 @@ local function GetValidChests(hrpPosition)
                     current = current.Parent
                 end
             end
-            
             if not isIgnored then
                 local part = obj:IsA("BasePart") and obj or obj:FindFirstChildWhichIsA("BasePart")
                 if part then table.insert(chests, part) end
             end
         end
     end
-    
     table.sort(chests, function(a, b)
         return (a.Position - hrpPosition).Magnitude < (b.Position - hrpPosition).Magnitude
     end)
-    
     return chests
 end
 
@@ -336,30 +319,23 @@ task.spawn(function()
         if getgenv().KL_AutoChestRunning and LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
             local hrp = LocalPlayer.Character.HumanoidRootPart
             local chestList = GetValidChests(hrp.Position)
-            
             for _, chestPart in ipairs(chestList) do
                 if not getgenv().KL_AutoChestRunning then break end
-                
                 local timeout = tick() + 5 
-                
                 while chestPart and chestPart.Parent and tick() < timeout and getgenv().KL_AutoChestRunning do
                     StatusLabel.Text = "Trạng thái: Đang nhặt rương (Orbit)..."
                     StatusLabel.TextColor3 = Color3.fromRGB(0, 255, 100)
-                    
                     hrp.CFrame = CFrame.new(chestPart.Position + Vector3.new(0, 2.5, 0))
                     hrp.Velocity = Vector3.new(0, 0, 0)
-                    
                     pcall(function()
                         local prompt = chestPart.Parent:FindFirstChildWhichIsA("ProximityPrompt", true) or chestPart:FindFirstChildWhichIsA("ProximityPrompt", true)
                         if prompt then fireproximityprompt(prompt) end
-                        
                         if firetouchinterest then
                             firetouchinterest(hrp, chestPart, 0)
                             task.wait(0.01)
                             firetouchinterest(hrp, chestPart, 1)
                         end
                     end)
-                    
                     RunService.Heartbeat:Wait()
                 end
             end
@@ -400,7 +376,6 @@ task.spawn(function()
                 task.wait(1)
                 elapsed = elapsed + 1
             end
-            
             if getgenv().KL_AutoHopRunning and not IsTeleporting then
                 HopServer()
             end
