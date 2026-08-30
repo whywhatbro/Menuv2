@@ -1,5 +1,5 @@
 -- =================================================================
--- KING LEGACY - AUTO RƯƠNG EVENT TỐI ƯU (KHÔNG LAG, CHUẨN RƯƠNG BOSS)
+-- KING LEGACY - AUTO RƯƠNG EVENT (CƠ CHẾ LẮNG NGHE SỰ KIỆN TRỰC TIẾP)
 -- =================================================================
 
 local Players = game:GetService("Players")
@@ -15,7 +15,7 @@ local AutoChestRunning = false
 local HopDelay = 15
 
 local ScreenGui = Instance.new("ScreenGui")
-ScreenGui.Name = "KL_EventChestOptimized"
+ScreenGui.Name = "KL_EventChestLive"
 ScreenGui.Parent = CoreGui
 
 local ToggleBtn = Instance.new("TextButton")
@@ -43,15 +43,25 @@ end)
 local Title = Instance.new("TextLabel")
 Title.Size = UDim2.new(1, 0, 0, 30)
 Title.BackgroundColor3 = Color3.fromRGB(30, 30, 42)
-Title.Text = "AUTO RƯƠNG EVENT (ĐÃ FIX LAG & RƯƠNG BOSS)"
+Title.Text = "AUTO RƯƠNG EVENT (LIVE MONITOR)"
 Title.TextColor3 = Color3.fromRGB(0, 255, 180)
 Title.Font = Enum.Font.SourceSansBold
-Title.TextSize = 9
+Title.TextSize = 10
 Title.Parent = MainFrame
+
+local StatusLabel = Instance.new("TextLabel")
+StatusLabel.Size = UDim2.new(1, -16, 0, 25)
+StatusLabel.Position = UDim2.new(0, 8, 0, 38)
+StatusLabel.BackgroundTransparency = 1
+StatusLabel.Text = "Trạng thái: Đang chờ rương xuất hiện..."
+StatusLabel.TextColor3 = Color3.fromRGB(255, 255, 100)
+StatusLabel.Font = Enum.Font.SourceSans
+StatusLabel.TextSize = 11
+StatusLabel.Parent = MainFrame
 
 local TimeBoxContainer = Instance.new("Frame")
 TimeBoxContainer.Size = UDim2.new(1, -16, 0, 30)
-TimeBoxContainer.Position = UDim2.new(0, 8, 0, 38)
+TimeBoxContainer.Position = UDim2.new(0, 8, 0, 68)
 TimeBoxContainer.BackgroundColor3 = Color3.fromRGB(30, 30, 42)
 TimeBoxContainer.Parent = MainFrame
 
@@ -85,7 +95,7 @@ end)
 
 local AutoHopBtn = Instance.new("TextButton")
 AutoHopBtn.Size = UDim2.new(1, -16, 0, 32)
-AutoHopBtn.Position = UDim2.new(0, 8, 0, 74)
+AutoHopBtn.Position = UDim2.new(0, 8, 0, 104)
 AutoHopBtn.BackgroundColor3 = Color3.fromRGB(180, 50, 50)
 AutoHopBtn.Text = "AUTO HOP 11-12 NGƯỜI: TẮT"
 AutoHopBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
@@ -95,7 +105,7 @@ AutoHopBtn.Parent = MainFrame
 
 local AutoChestBtn = Instance.new("TextButton")
 AutoChestBtn.Size = UDim2.new(1, -16, 0, 32)
-AutoChestBtn.Position = UDim2.new(0, 8, 0, 111)
+AutoChestBtn.Position = UDim2.new(0, 8, 0, 141)
 AutoChestBtn.BackgroundColor3 = Color3.fromRGB(180, 50, 50)
 AutoChestBtn.Text = "AUTO NHẶT RƯƠNG EVENT: TẮT"
 AutoChestBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
@@ -104,8 +114,8 @@ AutoChestBtn.TextSize = 11
 AutoChestBtn.Parent = MainFrame
 
 local Scroll = Instance.new("ScrollingFrame")
-Scroll.Size = UDim2.new(1, -16, 1, -190)
-Scroll.Position = UDim2.new(0, 8, 0, 150)
+Scroll.Size = UDim2.new(1, -16, 1, -220)
+Scroll.Position = UDim2.new(0, 8, 0, 180)
 Scroll.BackgroundColor3 = Color3.fromRGB(15, 15, 20)
 Scroll.CanvasSize = UDim2.new(0, 0, 0, 0)
 Scroll.Parent = MainFrame
@@ -114,36 +124,58 @@ local UIList = Instance.new("UIListLayout")
 UIList.Parent = Scroll
 UIList.Padding = UDim.new(0, 4)
 
--- Thuật toán tối ưu: Chỉ tìm kiếm trực tiếp trong các khu vực sự kiện, không quét tràn lan gây lag
+-- Hàm dịch chuyển đến rương an toàn
+local function TeleportToChest(part)
+    if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
+        local hrp = LocalPlayer.Character.HumanoidRootPart
+        StatusLabel.Text = "Trạng thái: Đã tìm thấy và bay đến rương!"
+        StatusLabel.TextColor3 = Color3.fromRGB(0, 255, 100)
+        hrp.CFrame = CFrame.new(part.Position + Vector3.new(0, 3, 0))
+    end
+end
+
+-- Lắng nghe trực tiếp khi có bất kỳ vật thể mới nào sinh ra trong Workspace (Bắt ngay lập tức không cần chờ vòng lặp)
+Workspace.DescendantAdded:Connect(function(obj)
+    if not AutoChestRunning then return end
+    
+    local name = obj.Name:lower()
+    if name:find("chest") or name:find("reward") or name:find("seaking") or name:find("ghost") or name:find("hydra") then
+        local part = nil
+        if obj:IsA("Model") then
+            part = obj.PrimaryPart or obj:FindFirstChildWhichIsA("BasePart")
+        elseif obj:IsA("BasePart") then
+            part = obj
+        end
+        
+        if part then
+            TeleportToChest(part)
+        end
+    end
+end)
+
+-- Quét quét sẵn các rương đang hiển thị sẵn trên màn hình
 task.spawn(function()
     while true do
-        task.wait(1) -- Giãn thời gian kiểm tra để game hoàn toàn mượt mà, không bị giật
+        task.wait(1.5)
         if AutoChestRunning and LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
-            local hrp = LocalPlayer.Character.HumanoidRootPart
-            
-            -- Danh sách các tên thư mục hoặc từ khóa định danh đặc thù của rương Sea King / Ghost Ship / Hydra
-            for _, obj in pairs(Workspace:GetChildren()) do
+            for _, obj in pairs(Workspace:GetDescendants()) do
                 if not AutoChestRunning then break end
                 
                 local name = obj.Name:lower()
-                
-                -- Chỉ quét các vật thể/thư mục liên quan đến sự kiện biển lớn
-                if name:find("seaking") or name:find("sea king") or name:find("ghost") or name:find("ship") or name:find("hydra") or name:find("event") then
-                    for _, child in pairs(obj:GetDescendants()) do
-                        local cName = child.Name:lower()
-                        if cName:find("chest") or cName:find("reward") then
-                            local part = nil
-                            if child:IsA("Model") then
-                                part = child.PrimaryPart or child:FindFirstChildWhichIsA("BasePart")
-                            elseif child:IsA("BasePart") then
-                                part = child
-                            end
-                            
-                            if part then
-                                local pos = part.Position
-                                hrp.CFrame = CFrame.new(pos + Vector3.new(0, 3, 0))
-                                task.wait(0.5)
-                            end
+                -- Mở rộng bộ nhận diện tất cả các loại rương/phần thưởng boss biển
+                if name:find("chest") or name:find("reward") then
+                    local parentName = obj.Parent and obj.Parent.Name:lower() or ""
+                    if parentName:find("seaking") or parentName:find("sea king") or parentName:find("ghost") or parentName:find("ship") or parentName:find("hydra") or parentName:find("boss") or parentName:find("event") then
+                        local part = nil
+                        if obj:IsA("Model") then
+                            part = obj.PrimaryPart or obj:FindFirstChildWhichIsA("BasePart")
+                        elseif obj:IsA("BasePart") then
+                            part = obj
+                        end
+                        
+                        if part then
+                            TeleportToChest(part)
+                            task.wait(0.5)
                         end
                     end
                 end
@@ -207,9 +239,11 @@ AutoChestBtn.MouseButton1Click:Connect(function()
     if AutoChestRunning then
         AutoChestBtn.BackgroundColor3 = Color3.fromRGB(0, 180, 80)
         AutoChestBtn.Text = "AUTO NHẶT RƯƠNG EVENT: BẬT"
+        StatusLabel.Text = "Trạng thái: Đang bật quét rương sự kiện..."
     else
         AutoChestBtn.BackgroundColor3 = Color3.fromRGB(180, 50, 50)
         AutoChestBtn.Text = "AUTO NHẶT RƯƠNG EVENT: TẮT"
+        StatusLabel.Text = "Trạng thái: Đã tắt."
     end
 end)
 
@@ -257,6 +291,7 @@ local function ScanAndDisplay()
                 ServerItem.BackgroundColor3 = Color3.fromRGB(30, 30, 42)
                 ServerItem.Parent = Scroll
 
+                val = svr.playing
                 local InfoText = Instance.new("TextLabel")
                 InfoText.Size = UDim2.new(0.6, 0, 1, 0)
                 InfoText.BackgroundTransparency = 1
