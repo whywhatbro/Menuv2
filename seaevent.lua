@@ -1,34 +1,25 @@
 -- =================================================================
--- KING LEGACY - ULTIMATE SEA EVENT & CHEST FARM HUB (CUSTOM REDZ STYLE)
+-- KING LEGACY - TEST PHẦN 1 & PHẦN 2 KẾT HỢP
 -- =================================================================
 
 local Players = game:GetService("Players")
 local LocalPlayer = Players.LocalPlayer
-local Workspace = game:GetService("Workspace")
 local TweenService = game:GetService("TweenService")
-local HttpService = game:GetService("HttpService")
-local TeleportService = game:GetService("TeleportService")
 local RunService = game:GetService("RunService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local VirtualInputManager = game:GetService("VirtualInputManager")
 
--- GOBLAL CONFIGURATION
-getgenv().KL_Hub = {
-    AutoSeaEvent = false,
-    AutoAttack = false,
-    AutoSkills = {Z = true, X = true, C = true, V = true, E = true},
-    AutoChest = false,
-    AutoBuso = true,
-    AutoHop = false,
+getgenv().KL_TestConfig = {
+    TweenSpeed = 280,
     SafeDistance = 35,
-    TweenSpeed = 300,
-    HopDelay = 10
+    AutoBuso = true,
+    AutoKen = true,
+    AutoEquipMain = true,
+    MainWeapon = "Melee", -- "Melee", "Sword", hoặc "Blox Fruit"
+    Skills = {Z = true, X = true, C = true, V = true, E = true}
 }
 
-local VisitedServers = {}
-local isAttacking = false
-
--- 1. CHỐNG VĂNG GAME & NOCLIP (NO-COLLISION)
+-- // 1. HỆ THỐNG NOCLIP & TWEEN (PHẦN 1)
 local NoclipConn
 local function SetNoclip(state)
     if state then
@@ -46,8 +37,7 @@ local function SetNoclip(state)
     end
 end
 
--- 2. TWEEN DI CHUYỂN AN TOÀN
-local currentTween
+local currentTween = nil
 local function SafeTween(targetCFrame)
     local char = LocalPlayer.Character
     if not char or not char:FindFirstChild("HumanoidRootPart") then return end
@@ -57,7 +47,7 @@ local function SafeTween(targetCFrame)
     if dist < 5 then return end
 
     SetNoclip(true)
-    local duration = dist / getgenv().KL_Hub.TweenSpeed
+    local duration = dist / getgenv().KL_TestConfig.TweenSpeed
     
     if currentTween then currentTween:Cancel() end
     currentTween = TweenService:Create(hrp, TweenInfo.new(duration, Enum.EasingStyle.Linear), {CFrame = targetCFrame})
@@ -68,123 +58,28 @@ local function SafeTween(targetCFrame)
     end)
 end
 
--- 3. AUTO BẬT BUSOSHOKU HAKI (KING LEGACY REMOTE)
-task.spawn(function()
-    while task.wait(1) do
-        if getgenv().KL_Hub.AutoBuso and LocalPlayer.Character then
-            if not LocalPlayer.Character:FindFirstChild("HasBuso") then
-                pcall(function()
-                    ReplicatedStorage.Remotes.Functions.Buso:InvokeServer()
-                end)
-            end
-        end
-    end
-end)
-
--- 4. TÌM SEA EVENT TRONG KING LEGACY
-local function GetKingLegacyBoss()
-    for _, entity in pairs(Workspace:GetChildren()) do
-        if entity:FindFirstChild("Humanoid") and entity.Humanoid.Health > 0 and entity:FindFirstChild("HumanoidRootPart") then
-            local name = string.lower(entity.Name)
-            if name:find("sea king") or name:find("ghost ship") or name:find("hydra") or name:find("kraken") or name:find("sea monster") or name:find("drakenfyr") or name:find("beast") then
-                return entity
-            end
-        end
-    end
-    return nil
-end
-
--- 5. TỰ ĐỘNG ĐÁNH VÀ XẢ SKILL
-local function ExecuteAttack()
-    local char = LocalPlayer.Character
-    if not char then return end
-
-    -- Equip Weapon
-    local tool = char:FindFirstChildOfClass("Tool") or LocalPlayer.Backpack:FindFirstChildOfClass("Tool")
-    if tool and tool.Parent == LocalPlayer.Backpack then
-        char.Humanoid:EquipTool(tool)
-    end
-
-    if tool then
-        tool:Activate()
-        
-        -- Spam Skill đã chọn
-        for skillKey, enabled in pairs(getgenv().KL_Hub.AutoSkills) do
-            if enabled then
-                VirtualInputManager:SendKeyEvent(true, Enum.KeyCode[skillKey], false, game)
-                task.wait(0.02)
-                VirtualInputManager:SendKeyEvent(false, Enum.KeyCode[skillKey], false, game)
-            end
-        end
-    end
-end
-
--- 6. GOM RƯƠNG TRÊN BẢN ĐỒ
-local function CollectChests()
-    for _, v in pairs(Workspace:GetDescendants()) do
-        if getgenv().KL_Hub.AutoChest and (v.Name:find("Chest") or v.Name:find("Rương") or v.Name:find("Treasure")) then
-            local part = v:IsA("BasePart") and v or v:FindFirstChildWhichIsA("BasePart")
-            if part then
-                SafeTween(part.CFrame * CFrame.new(0, 3, 0))
-                task.wait(0.3)
-                
-                local prompt = v:FindFirstChildOfClass("ProximityPrompt") or part:FindFirstChildOfClass("ProximityPrompt")
-                if prompt then
-                    fireproximityprompt(prompt)
-                end
-            end
-        end
-    end
-end
-
--- 7. SMART HOP SERVER
-local function SmartHopServer()
-    print("[King Legacy Hub] Đang nhảy Server mới...")
-    SetNoclip(false)
-    
-    local placeId = game.PlaceId
-    local success, result = pcall(function()
-        return game:HttpGet("https://games.roblox.com/v1/games/" .. placeId .. "/servers/Public?sortOrder=Desc&limit=100")
-    end)
-
-    if success and result then
-        local body = HttpService:JSONDecode(result)
-        if body and body.data then
-            for _, server in ipairs(body.data) do
-                if server.playing < server.maxPlayers and server.id ~= game.JobId and not VisitedServers[server.id] then
-                    VisitedServers[server.id] = true
-                    TeleportService:TeleportToPlaceInstance(placeId, server.id, LocalPlayer)
-                    task.wait(5)
-                    break
-                end
-            end
-        end
-    end
-end
-
--- 8. GIAO DIỆN UI HUB ĐẸP MẮT (MOBILE & PC)
+-- // 2. TẠO GIAO DIỆN MENU GUI (PHẦN 1)
 local ScreenGui = Instance.new("ScreenGui")
-ScreenGui.Name = "KL_Ultimate_Hub"
+ScreenGui.Name = "KL_Test_GUI"
 ScreenGui.Parent = (gethui and gethui()) or game:GetService("CoreGui") or LocalPlayer.PlayerGui
 
 local ToggleBtn = Instance.new("TextButton")
 ToggleBtn.Size = UDim2.new(0, 50, 0, 50)
 ToggleBtn.Position = UDim2.new(0, 15, 0.4, 0)
-ToggleBtn.BackgroundColor3 = Color3.fromRGB(255, 60, 60)
-ToggleBtn.Text = "KL"
+ToggleBtn.BackgroundColor3 = Color3.fromRGB(0, 200, 120)
+ToggleBtn.Text = "MENU"
 ToggleBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
 ToggleBtn.Font = Enum.Font.SourceSansBold
-ToggleBtn.TextSize = 20
+ToggleBtn.TextSize = 14
 ToggleBtn.Parent = ScreenGui
 
 local MainFrame = Instance.new("Frame")
-MainFrame.Size = UDim2.new(0, 320, 0, 380)
-MainFrame.Position = UDim2.new(0.5, -160, 0.5, -190)
+MainFrame.Size = UDim2.new(0, 300, 0, 350)
+MainFrame.Position = UDim2.new(0.5, -150, 0.5, -175)
 MainFrame.BackgroundColor3 = Color3.fromRGB(20, 20, 26)
-MainFrame.BorderSizePixel = 0
-MainFrame.Visible = true
 MainFrame.Active = true
 MainFrame.Draggable = true
+MainFrame.Visible = true
 MainFrame.Parent = ScreenGui
 
 ToggleBtn.MouseButton1Click:Connect(function()
@@ -193,87 +88,115 @@ end)
 
 local Title = Instance.new("TextLabel")
 Title.Size = UDim2.new(1, 0, 0, 35)
-Title.BackgroundColor3 = Color3.fromRGB(30, 30, 40)
-Title.Text = "👑 KING LEGACY HUB | SEA EVENT"
-Title.TextColor3 = Color3.fromRGB(255, 215, 0)
+Title.BackgroundColor3 = Color3.fromRGB(30, 30, 42)
+Title.Text = "TEST P1 & P2: HAKI & COMBO"
+Title.TextColor3 = Color3.fromRGB(0, 255, 150)
 Title.Font = Enum.Font.SourceSansBold
-Title.TextSize = 14
+Title.TextSize = 13
 Title.Parent = MainFrame
 
 local Scroll = Instance.new("ScrollingFrame")
 Scroll.Size = UDim2.new(1, -20, 1, -45)
 Scroll.Position = UDim2.new(0, 10, 0, 40)
 Scroll.BackgroundTransparency = 1
-Scroll.CanvasSize = UDim2.new(0, 0, 0, 450)
+Scroll.CanvasSize = UDim2.new(0, 0, 0, 350)
 Scroll.Parent = MainFrame
 
 local UIList = Instance.new("UIListLayout")
 UIList.Parent = Scroll
-UIList.Padding = UDim.new(0, 6)
+UIList.Padding = UDim.new(0, 5)
 
-local function CreateToggle(name, default, callback)
+local function CreateToggle(text, default, callback)
     local btn = Instance.new("TextButton")
-    btn.Size = UDim2.new(1, 0, 0, 32)
-    btn.BackgroundColor3 = default and Color3.fromRGB(0, 180, 120) or Color3.fromRGB(40, 40, 50)
-    btn.Text = name .. ": " .. (default and "ON" or "OFF")
+    btn.Size = UDim2.new(1, 0, 0, 30)
+    btn.BackgroundColor3 = default and Color3.fromRGB(0, 160, 100) or Color3.fromRGB(50, 50, 60)
+    btn.Text = text .. ": " .. (default and "ON" or "OFF")
     btn.TextColor3 = Color3.fromRGB(255, 255, 255)
     btn.Font = Enum.Font.SourceSansBold
     btn.TextSize = 12
     btn.Parent = Scroll
-    
+
     local state = default
     btn.MouseButton1Click:Connect(function()
         state = not state
-        btn.Text = name .. ": " .. (state and "ON" or "OFF")
-        btn.BackgroundColor3 = state and Color3.fromRGB(0, 180, 120) or Color3.fromRGB(40, 40, 50)
+        btn.Text = text .. ": " .. (state and "ON" or "OFF")
+        btn.BackgroundColor3 = state and Color3.fromRGB(0, 160, 100) or Color3.fromRGB(50, 50, 60)
         callback(state)
     end)
 end
 
--- CÁC NÚT ĐIỀU KHIỂN SCRIPT
-CreateToggle("Auto Sea Event", getgenv().KL_Hub.AutoSeaEvent, function(s) getgenv().KL_Hub.AutoSeaEvent = s end)
-CreateToggle("Auto Attack", getgenv().KL_Hub.AutoAttack, function(s) getgenv().KL_Hub.AutoAttack = s end)
-CreateToggle("Auto Collect Chests", getgenv().KL_Hub.AutoChest, function(s) getgenv().KL_Hub.AutoChest = s end)
-CreateToggle("Auto Hop Server", getgenv().KL_Hub.AutoHop, function(s) getgenv().KL_Hub.AutoHop = s end)
-CreateToggle("Auto Buso Haki", getgenv().KL_Hub.AutoBuso, function(s) getgenv().KL_Hub.AutoBuso = s end)
+CreateToggle("Auto Buso Haki", getgenv().KL_TestConfig.AutoBuso, function(s) getgenv().KL_TestConfig.AutoBuso = s end)
+CreateToggle("Auto Ken Haki", getgenv().KL_TestConfig.AutoKen, function(s) getgenv().KL_TestConfig.AutoKen = s end)
+CreateToggle("Auto Equip Weapon", getgenv().KL_TestConfig.AutoEquipMain, function(s) getgenv().KL_TestConfig.AutoEquipMain = s end)
 
--- NÚT BẬT/TẮT SKILL TỰ ĐỘNG
-for _, skill in ipairs({"Z", "X", "C", "V", "E"}) do
-    CreateToggle("Use Skill [" .. skill .. "]", getgenv().KL_Hub.AutoSkills[skill], function(s)
-        getgenv().KL_Hub.AutoSkills[skill] = s
+for _, key in ipairs({"Z", "X", "C", "V", "E"}) do
+    CreateToggle("Skill [" .. key .. "]", getgenv().KL_TestConfig.Skills[key], function(s)
+        getgenv().KL_TestConfig.Skills[key] = s
     end)
 end
 
--- 9. MAIN AUTOMATION LOOP
+-- // 3. HỆ THỐNG HAKI & VŨ KHÍ (PHẦN 2)
 task.spawn(function()
-    local noBossTimer = 0
+    while task.wait(1.5) do
+        local char = LocalPlayer.Character
+        if char then
+            if getgenv().KL_TestConfig.AutoBuso and not char:FindFirstChild("HasBuso") then
+                pcall(function() ReplicatedStorage.Remotes.Functions.Buso:InvokeServer() end)
+            end
+            if getgenv().KL_TestConfig.AutoKen and not char:FindFirstChild("HasKen") then
+                pcall(function() ReplicatedStorage.Remotes.Functions.Ken:InvokeServer() end)
+            end
+        end
+    end
+end)
+
+local function EquipMainWeapon()
+    local char = LocalPlayer.Character
+    local backpack = LocalPlayer:FindFirstChild("Backpack")
+    if not char or not backpack then return end
+
+    local allTools = {}
+    for _, item in pairs(backpack:GetChildren()) do if item:IsA("Tool") then table.insert(allTools, item) end end
+    for _, item in pairs(char:GetChildren()) do if item:IsA("Tool") then table.insert(allTools, item) end end
+
+    for _, tool in pairs(allTools) do
+        local name = tool.Name:lower()
+        local isMatch = false
+        local weaponType = getgenv().KL_TestConfig.MainWeapon
+
+        if weaponType == "Melee" and (name:find("style") or name:find("combat") or name:find("leg") or name:find("fist") or name:find("claw") or name:find("karate")) then isMatch = true
+        elseif weaponType == "Sword" and not name:find("fruit") and not name:find("style") and not name:find("combat") then isMatch = true
+        elseif weaponType == "Blox Fruit" and (name:find("fruit") or tool:FindFirstChild("Fruit")) then isMatch = true end
+
+        if isMatch then
+            if tool.Parent ~= char then char.Humanoid:EquipTool(tool) end
+            return tool
+        end
+    end
+    return nil
+end
+
+-- Test chạy thử tính năng Combat định kỳ khi bật toggle
+task.spawn(function()
     while task.wait(0.2) do
-        if getgenv().KL_Hub.AutoSeaEvent then
-            local boss = GetKingLegacyBoss()
-            
-            if boss and boss:FindFirstChild("HumanoidRootPart") and boss.Humanoid.Health > 0 then
-                noBossTimer = 0
-                
-                -- Đứng an toàn trên đầu Sea Event
-                local targetCFrame = boss.HumanoidRootPart.CFrame * CFrame.new(0, getgenv().KL_Hub.SafeDistance, 0)
-                SafeTween(targetCFrame)
-
-                if getgenv().KL_Hub.AutoAttack then
-                    ExecuteAttack()
-                end
-            else
-                -- Tự động gom rương nếu không thấy Boss
-                if getgenv().KL_Hub.AutoChest then
-                    CollectChests()
-                end
-
-                -- Đếm thời gian đỗ bến để Hop Server
-                noBossTimer = noBossTimer + 0.2
-                if getgenv().KL_Hub.AutoHop and noBossTimer >= getgenv().KL_Hub.HopDelay then
-                    SmartHopServer()
-                    noBossTimer = 0
+        if getgenv().KL_TestConfig.AutoEquipMain then
+            EquipMainWeapon()
+        end
+        local char = LocalPlayer.Character
+        if char then
+            local tool = char:FindFirstChildOfClass("Tool")
+            if tool then
+                tool:Activate()
+                for skillKey, enabled in pairs(getgenv().KL_TestConfig.Skills) do
+                    if enabled then
+                        VirtualInputManager:SendKeyEvent(true, Enum.KeyCode[skillKey], false, game)
+                        task.wait(0.01)
+                        VirtualInputManager:SendKeyEvent(false, Enum.KeyCode[skillKey], false, game)
+                    end
                 end
             end
         end
     end
 end)
+
+print("[System] Test Phần 1 và Phần 2 đã tải thành công!")
