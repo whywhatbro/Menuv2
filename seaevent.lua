@@ -1,5 +1,5 @@
 -- =================================================================
--- KING LEGACY - V7 PRO (ÉP SPAWN NHÂN VẬT, FIX KẸT CAMERA & ORBIT RƯƠNG)
+-- KING LEGACY - V8 PRO (DÙNG GUI SERVICE HIỆN KHUNG XANH & ÉP PLAY)
 -- =================================================================
 
 local Players = game:GetService("Players")
@@ -9,6 +9,7 @@ local HttpService = game:GetService("HttpService")
 local CoreGui = (gethui and gethui()) or game:GetService("CoreGui")
 local Workspace = game:GetService("Workspace")
 local VirtualInputManager = game:GetService("VirtualInputManager")
+local GuiService = game:GetService("GuiService")
 local RunService = game:GetService("RunService")
 local Camera = Workspace.CurrentCamera
 
@@ -52,15 +53,12 @@ TeleportService.TeleportInitFailed:Connect(function(player, teleportResult, erro
     end
 end)
 
--- ================= 1. AUTO PLAY & ÉP SPAWN NHÂN VẬT =================
+-- ================= 1. AUTO PLAY BẰNG KHUNG CHỌN (GUI SERVICE) =================
 task.spawn(function()
-    local clickedPlay = false
     while task.wait(1) do
         pcall(function()
-            -- Nếu nhân vật đã xuất hiện và có thể điều khiển thì bỏ qua Auto Play
+            -- Nếu nhân vật đã xuất hiện và sống khỏe mạnh thì thoát vòng lặp bấm Play
             if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") and LocalPlayer.Character:FindFirstChildOfClass("Humanoid").Health > 0 then
-                clickedPlay = true
-                -- Ép camera bám sát nhân vật
                 if Camera.CameraSubject ~= LocalPlayer.Character:FindFirstChildOfClass("Humanoid") then
                     Camera.CameraSubject = LocalPlayer.Character:FindFirstChildOfClass("Humanoid")
                     Camera.CameraType = Enum.CameraType.Custom
@@ -78,39 +76,31 @@ task.spawn(function()
                         if string.find(name, "play") or string.find(text, "play") or 
                            string.find(name, "start") or string.find(text, "start") then
                             
-                            if getconnections then
-                                local eventTypes = {"MouseButton1Click", "MouseButton1Down", "MouseButton1Up", "Activated", "TouchTap"}
-                                for _, ev in ipairs(eventTypes) do
-                                    pcall(function()
-                                        for _, conn in pairs(getconnections(gui[ev])) do conn:Fire() end
-                                    end)
-                                end
+                            -- Ép Roblox chọn nút này (Hiển thị khung viền màu xanh da trời giống bàn phím/tay cầm)
+                            GuiService.SelectedObject = gui
+                            task.wait(0.2)
+                            
+                            -- Kích hoạt nút bằng cách giả lập phím Enter (Return) trên bàn phím
+                            if VirtualInputManager then
+                                VirtualInputManager:SendKeyEvent(true, Enum.KeyCode.Return, false, game)
+                                task.wait(0.05)
+                                VirtualInputManager:SendKeyEvent(false, Enum.KeyCode.Return, false, game)
                             end
                             
+                            -- Kết hợp thêm các phương pháp kích hoạt khác để chắc chắn 100% ăn lệnh
                             pcall(function() gui:Activate() end)
-                            
-                            local cx = gui.AbsolutePosition.X + (gui.AbsoluteSize.X / 2)
-                            local cy = gui.AbsolutePosition.Y + (gui.AbsoluteSize.Y / 2)
-                            pcall(function()
-                                if VirtualInputManager and VirtualInputManager.SendTouchEvent then
-                                    VirtualInputManager:SendTouchEvent(0, 0, 0, cx, cy, game)
-                                    task.wait(0.05)
-                                    VirtualInputManager:SendTouchEvent(0, 1, 0, cx, cy, game)
-                                end
-                            end)
-                            
-                            clickedPlay = true
+                            if getconnections then
+                                for _, conn in pairs(getconnections(gui.MouseButton1Click)) do conn:Fire() end
+                            end
                         end
                     end
                 end
             end
             
-            -- Nếu đã bấm Play mà sau vài giây nhân vật vẫn chưa chịu ra map, ép gọi lệnh LoadCharacter
-            if clickedPlay and (not LocalPlayer.Character or not LocalPlayer.Character:FindFirstChild("HumanoidRootPart")) then
-                task.wait(3)
-                pcall(function()
-                    LocalPlayer:LoadCharacter()
-                end)
+            -- Nếu sau một lúc vẫn kẹt, ép lệnh load nhân vật
+            if not LocalPlayer.Character or not LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
+                task.wait(2)
+                pcall(function() LocalPlayer:LoadCharacter() end)
             end
         end)
     end
@@ -118,7 +108,7 @@ end)
 
 -- ================= GIAO DIỆN MENU =================
 local ScreenGui = Instance.new("ScreenGui")
-ScreenGui.Name = "KL_MobileMasterGui_V7"
+ScreenGui.Name = "KL_MobileMasterGui_V8"
 ScreenGui.Parent = CoreGui
 
 local ToggleBtn = Instance.new("TextButton")
@@ -144,7 +134,7 @@ ToggleBtn.MouseButton1Click:Connect(function() MainFrame.Visible = not MainFrame
 local Title = Instance.new("TextLabel")
 Title.Size = UDim2.new(1, 0, 0, 30)
 Title.BackgroundColor3 = Color3.fromRGB(30, 30, 42)
-Title.Text = "AUTO EVENT KL V7 (FIX SPAWN & ORBIT)"
+Title.Text = "AUTO EVENT KL V8 (GUI SERVICE FOCUS)"
 Title.TextColor3 = Color3.fromRGB(0, 255, 180)
 Title.Font = Enum.Font.SourceSansBold
 Title.TextSize = 10
