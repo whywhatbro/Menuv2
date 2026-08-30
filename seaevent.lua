@@ -1,5 +1,5 @@
 -- =================================================================
--- KING LEGACY - AUTO PLAY & AUTO NHẶT RƯƠNG EVENT (FIX MOBILE HOÀN CHỈNH)
+-- KING LEGACY - AUTO PLAY & AUTO EVENT CHEST (FIX NHẶT RƯƠNG MỌI SERVER)
 -- =================================================================
 
 local Players = game:GetService("Players")
@@ -8,20 +8,36 @@ local TeleportService = game:GetService("TeleportService")
 local HttpService = game:GetService("HttpService")
 local CoreGui = (gethui and gethui()) or game:GetService("CoreGui")
 local Workspace = game:GetService("Workspace")
+local VirtualUser = game:GetService("VirtualUser")
+local VirtualInputManager = game:GetService("VirtualInputManager")
+
+-- Lưu trạng thái xuyên server
+getgenv().KL_AutoHopRunning = getgenv().KL_AutoHopRunning or false
+getgenv().KL_AutoChestRunning = getgenv().KL_AutoChestRunning or false
+getgenv().KL_HopDelay = getgenv().KL_HopDelay or 15
 
 local VisitedServers = {}
-local AutoHopRunning = false
-local AutoChestRunning = false
-local HopDelay = 15
+local CollectedChests = {} -- Lưu các rương đã nhặt để không bị kẹt lặp lại
+
+-- Giữ trạng thái khi đổi server
+pcall(function()
+    if queue_on_teleport then
+        queue_on_teleport([[
+            getgenv().KL_AutoHopRunning = ]] .. tostring(getgenv().KL_AutoHopRunning) .. [[
+            getgenv().KL_AutoChestRunning = ]] .. tostring(getgenv().KL_AutoChestRunning) .. [[
+            getgenv().KL_HopDelay = ]] .. tostring(getgenv().KL_HopDelay) .. [[
+        ]])
+    end
+end)
 
 local ScreenGui = Instance.new("ScreenGui")
-ScreenGui.Name = "KL_MobileEventChest"
+ScreenGui.Name = "KL_MobileMasterGui"
 ScreenGui.Parent = CoreGui
 
--- 1. CƠ CHẾ AUTO PLAY CHO MOBILE: Vừa kích hoạt nút vừa ẩn khung chờ để vào game ngay lập tức
+-- 1. AUTO PLAY: Tự động nhấn/chạm nút Play khi vào game
 task.spawn(function()
     while true do
-        task.wait(0.5)
+        task.wait(0.3)
         pcall(function()
             if not LocalPlayer.Character or not LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
                 local playerGui = LocalPlayer:FindFirstChild("PlayerGui")
@@ -35,24 +51,24 @@ task.spawn(function()
                                 local name = gui.Name:lower()
                                 
                                 if text:find("play") or text:find("start") or text:find("chơi") or name:find("play") then
-                                    -- Kích hoạt sự kiện bấm nút nếu executor hỗ trợ
-                                    pcall(function()
-                                        if firesignal then
-                                            firesignal(gui.MouseButton1Click)
-                                            firesignal(gui.Activated)
-                                        end
-                                    end)
-                                    
-                                    -- Ẩn hoặc tắt khung chứa màn hình chờ để game tự spawn nhân vật vào map
-                                    local parent = gui.Parent
-                                    while parent and parent ~= container do
-                                        if parent:IsA("Frame") or parent:IsA("ScreenGui") then
-                                            local pName = parent.Name:lower()
-                                            if pName:find("menu") or pName:find("intro") or pName:find("start") or pName:find("main") or pName:find("gui") then
-                                                parent.Visible = false
+                                    if gui.Visible and gui.AbsoluteSize.X > 0 then
+                                        local pos = gui.AbsolutePosition
+                                        local size = gui.AbsoluteSize
+                                        local cx = pos.X + size.X / 2
+                                        local cy = pos.Y + size.Y / 2
+                                        
+                                        pcall(function()
+                                            if VirtualInputManager and VirtualInputManager.SendTouchEvent then
+                                                VirtualInputManager:SendTouchEvent(0, 0, 0, cx, cy, game)
+                                                task.wait(0.05)
+                                                VirtualInputManager:SendTouchEvent(0, 1, 0, cx, cy, game)
+                                            elseif VirtualUser then
+                                                VirtualUser:Button1Down(Vector2.new(cx, cy))
+                                                task.wait(0.05)
+                                                VirtualUser:Button1Up(Vector2.new(cx, cy))
                                             end
-                                        end
-                                        parent = parent.Parent
+                                            gui:Activate()
+                                        end)
                                     end
                                 end
                             end
@@ -64,7 +80,7 @@ task.spawn(function()
     end
 end)
 
--- GIAO DIỆN MENU ĐIỀU KHIỂN
+-- GIAO DIỆN MENU
 local ToggleBtn = Instance.new("TextButton")
 ToggleBtn.Size = UDim2.new(0, 45, 0, 45)
 ToggleBtn.Position = UDim2.new(0, 15, 0.3, 0)
@@ -100,7 +116,7 @@ local StatusLabel = Instance.new("TextLabel")
 StatusLabel.Size = UDim2.new(1, -16, 0, 25)
 StatusLabel.Position = UDim2.new(0, 8, 0, 38)
 StatusLabel.BackgroundTransparency = 1
-StatusLabel.Text = "Trạng thái: Đang sẵn sàng..."
+StatusLabel.Text = "Trạng thái: Đang hoạt động..."
 StatusLabel.TextColor3 = Color3.fromRGB(255, 255, 100)
 StatusLabel.Font = Enum.Font.SourceSans
 StatusLabel.TextSize = 11
@@ -126,7 +142,7 @@ local TimeTextBox = Instance.new("TextBox")
 TimeTextBox.Size = UDim2.new(0.35, 0, 0.8, 0)
 TimeTextBox.Position = UDim2.new(0.62, 0, 0.1, 0)
 TimeTextBox.BackgroundColor3 = Color3.fromRGB(45, 45, 65)
-TimeTextBox.Text = "15"
+TimeTextBox.Text = tostring(getgenv().KL_HopDelay)
 TimeTextBox.TextColor3 = Color3.fromRGB(0, 255, 180)
 TimeTextBox.Font = Enum.Font.SourceSansBold
 TimeTextBox.TextSize = 12
@@ -135,30 +151,40 @@ TimeTextBox.Parent = TimeBoxContainer
 TimeTextBox.FocusLost:Connect(function()
     local val = tonumber(TimeTextBox.Text)
     if val and val >= 3 then
-        HopDelay = val
+        getgenv().KL_HopDelay = val
     end
-    TimeTextBox.Text = tostring(HopDelay)
+    TimeTextBox.Text = tostring(getgenv().KL_HopDelay)
 end)
 
 local AutoHopBtn = Instance.new("TextButton")
 AutoHopBtn.Size = UDim2.new(1, -16, 0, 32)
 AutoHopBtn.Position = UDim2.new(0, 8, 0, 104)
-AutoHopBtn.BackgroundColor3 = Color3.fromRGB(180, 50, 50)
-AutoHopBtn.Text = "AUTO HOP 11-12 NGƯỜI: TẮT"
-AutoHopBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+AutoHopBtn.Parent = MainFrame
 AutoHopBtn.Font = Enum.Font.SourceSansBold
 AutoHopBtn.TextSize = 11
-AutoHopBtn.Parent = MainFrame
 
 local AutoChestBtn = Instance.new("TextButton")
 AutoChestBtn.Size = UDim2.new(1, -16, 0, 32)
 AutoChestBtn.Position = UDim2.new(0, 8, 0, 141)
-AutoChestBtn.BackgroundColor3 = Color3.fromRGB(180, 50, 50)
-AutoChestBtn.Text = "AUTO NHẶT RƯƠNG EVENT: TẮT"
-AutoChestBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+AutoChestBtn.Parent = MainFrame
 AutoChestBtn.Font = Enum.Font.SourceSansBold
 AutoChestBtn.TextSize = 11
-AutoChestBtn.Parent = MainFrame
+
+if getgenv().KL_AutoHopRunning then
+    AutoHopBtn.BackgroundColor3 = Color3.fromRGB(0, 180, 80)
+    AutoHopBtn.Text = "AUTO HOP 11-12 NGƯỜI: BẬT"
+else
+    AutoHopBtn.BackgroundColor3 = Color3.fromRGB(180, 50, 50)
+    AutoHopBtn.Text = "AUTO HOP 11-12 NGƯỜI: TẮT"
+end
+
+if getgenv().KL_AutoChestRunning then
+    AutoChestBtn.BackgroundColor3 = Color3.fromRGB(0, 180, 80)
+    AutoChestBtn.Text = "AUTO NHẶT RƯƠNG EVENT: BẬT"
+else
+    AutoChestBtn.BackgroundColor3 = Color3.fromRGB(180, 50, 50)
+    AutoChestBtn.Text = "AUTO NHẶT RƯƠNG EVENT: TẮT"
+end
 
 local Scroll = Instance.new("ScrollingFrame")
 Scroll.Size = UDim2.new(1, -16, 1, -220)
@@ -171,21 +197,21 @@ local UIList = Instance.new("UIListLayout")
 UIList.Parent = Scroll
 UIList.Padding = UDim.new(0, 4)
 
--- 2. CƠ CHẾ AUTO NHẶT RƯƠNG: Dịch chuyển + Kích hoạt TouchInterest/ProximityPrompt để nhận quà ngay lập tức
+-- 2. AUTO NHẶT RƯƠNG: Nhặt tất cả rương hiện có trong server ngay lập tức
 task.spawn(function()
     while true do
-        task.wait(0.3)
-        if AutoChestRunning and LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
+        task.wait(0.2)
+        if getgenv().KL_AutoChestRunning and LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
             local hrp = LocalPlayer.Character.HumanoidRootPart
             
             for _, obj in pairs(Workspace:GetDescendants()) do
-                if not AutoChestRunning then break end
+                if not getgenv().KL_AutoChestRunning then break end
                 
                 local name = obj.Name:lower()
-                if name:find("chest") or name:find("reward") then
-                    local current = obj.Parent
-                    local isSeaEventChest = false
+                -- Nhận diện mọi loại rương/phần thưởng event xuất hiện trong map
+                if (name:find("chest") or name:find("reward") or name:find("box")) and not CollectedChests[obj] then
                     local isIgnored = false
+                    local current = obj.Parent
                     
                     while current and current ~= Workspace do
                         local cName = current.Name:lower()
@@ -193,15 +219,10 @@ task.spawn(function()
                             isIgnored = true
                             break
                         end
-                        
-                        if cName:find("seaking") or cName:find("sea king") or cName:find("ghost") or cName:find("ship") or cName:find("hydra") then
-                            isSeaEventChest = true
-                            break
-                        end
                         current = current.Parent
                     end
                     
-                    if isSeaEventChest and not isIgnored then
+                    if not isIgnored then
                         local part = nil
                         if obj:IsA("Model") then
                             part = obj.PrimaryPart or obj:FindFirstChildWhichIsA("BasePart")
@@ -210,21 +231,18 @@ task.spawn(function()
                         end
                         
                         if part then
-                            StatusLabel.Text = "Trạng thái: Đã nhặt chuẩn rương Sea Event!"
+                            CollectedChests[obj] = true
+                            StatusLabel.Text = "Trạng thái: Đang nhặt rương ở server mới!"
                             StatusLabel.TextColor3 = Color3.fromRGB(0, 255, 100)
                             
-                            -- Dịch chuyển tới rương
                             hrp.CFrame = CFrame.new(part.Position + Vector3.new(0, 2, 0))
                             
-                            -- Kích hoạt tương tác rương (nếu có ProximityPrompt hoặc TouchInterest)
                             pcall(function()
                                 local prompt = obj:FindFirstChildWhichIsA("ProximityPrompt", true)
-                                if prompt then
-                                    fireproximityprompt(prompt)
-                                end
+                                if prompt then fireproximityprompt(prompt) end
                                 if firetouchinterest then
                                     firetouchinterest(hrp, part, 0)
-                                    task.wait(0.05)
+                                    task.wait(0.02)
                                     firetouchinterest(hrp, part, 1)
                                 end
                             end)
@@ -258,30 +276,33 @@ local function FetchAndHopNext()
     return false
 end
 
-AutoHopBtn.MouseButton1Click:Connect(function()
-    AutoHopRunning = not AutoHopRunning
-    if AutoHopRunning then
-        AutoHopBtn.BackgroundColor3 = Color3.fromRGB(0, 180, 80)
-        AutoHopBtn.Text = "AUTO HOP 11-12 NGƯỜI: BẬT"
-        
-        task.spawn(function()
-            while AutoHopRunning do
-                local elapsed = 0
-                while elapsed < HopDelay and AutoHopRunning do
-                    task.wait(1)
-                    elapsed = elapsed + 1
-                end
-                
-                if AutoHopRunning then
-                    local hopped = FetchAndHopNext()
-                    if not hopped then
-                        task.wait(3)
-                    else
-                        break
-                    end
+task.spawn(function()
+    while true do
+        task.wait(1)
+        if getgenv().KL_AutoHopRunning then
+            local elapsed = 0
+            while elapsed < getgenv().KL_HopDelay and getgenv().KL_AutoHopRunning do
+                task.wait(1)
+                elapsed = elapsed + 1
+            end
+            
+            if getgenv().KL_AutoHopRunning then
+                local hopped = FetchAndHopNext()
+                if not hopped then
+                    task.wait(3)
+                else
+                    break
                 end
             end
-        end)
+        end
+    end
+end)
+
+AutoHopBtn.MouseButton1Click:Connect(function()
+    getgenv().KL_AutoHopRunning = not getgenv().KL_AutoHopRunning
+    if getgenv().KL_AutoHopRunning then
+        AutoHopBtn.BackgroundColor3 = Color3.fromRGB(0, 180, 80)
+        AutoHopBtn.Text = "AUTO HOP 11-12 NGƯỜI: BẬT"
     else
         AutoHopBtn.BackgroundColor3 = Color3.fromRGB(180, 50, 50)
         AutoHopBtn.Text = "AUTO HOP 11-12 NGƯỜI: TẮT"
@@ -289,8 +310,8 @@ AutoHopBtn.MouseButton1Click:Connect(function()
 end)
 
 AutoChestBtn.MouseButton1Click:Connect(function()
-    AutoChestRunning = not AutoChestRunning
-    if AutoChestRunning then
+    getgenv().KL_AutoChestRunning = not getgenv().KL_AutoChestRunning
+    if getgenv().KL_AutoChestRunning then
         AutoChestBtn.BackgroundColor3 = Color3.fromRGB(0, 180, 80)
         AutoChestBtn.Text = "AUTO NHẶT RƯƠNG EVENT: BẬT"
         StatusLabel.Text = "Trạng thái: Đang quét rương event..."
