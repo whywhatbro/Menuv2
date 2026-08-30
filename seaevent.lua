@@ -1,320 +1,279 @@
 -- =================================================================
--- KING LEGACY: FULL AUTO FARM (CHỌN SKILL + VŨ KHÍ + ANTI-JITTER)
+-- KING LEGACY - ULTIMATE SEA EVENT & CHEST FARM HUB (CUSTOM REDZ STYLE)
 -- =================================================================
 
 local Players = game:GetService("Players")
-local CoreGui = game:GetService("CoreGui")
+local LocalPlayer = Players.LocalPlayer
 local Workspace = game:GetService("Workspace")
-local VirtualUser = game:GetService("VirtualUser")
+local TweenService = game:GetService("TweenService")
+local HttpService = game:GetService("HttpService")
+local TeleportService = game:GetService("TeleportService")
+local RunService = game:GetService("RunService")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local VirtualInputManager = game:GetService("VirtualInputManager")
 
-local LocalPlayer = Players.LocalPlayer
-
--- CẤU HÌNH MẶC ĐỊNH
-local Config = {
-    FarmNearest = true,
-    AttackDistance = 7, -- Khoảng cách đứng trên đầu quái (7m)
-    MaxMobDistance = 1000,
-    MainWeapon = "Melee", -- "Melee", "Sword", hoặc "Blox Fruit"
-    UseSkills = {
-        Z = true,
-        X = true,
-        C = true,
-        V = false,
-        E = false
-    }
+-- GOBLAL CONFIGURATION
+getgenv().KL_Hub = {
+    AutoSeaEvent = false,
+    AutoAttack = false,
+    AutoSkills = {Z = true, X = true, C = true, V = true, E = true},
+    AutoChest = false,
+    AutoBuso = true,
+    AutoHop = false,
+    SafeDistance = 35,
+    TweenSpeed = 300,
+    HopDelay = 10
 }
 
+local VisitedServers = {}
 local isAttacking = false
 
--- ANTI-AFK
-LocalPlayer.Idled:Connect(function()
-    VirtualUser:Button2Down(Vector2.new(0,0), workspace.CurrentCamera.CFrame)
-    task.wait(1)
-    VirtualUser:Button2Up(Vector2.new(0,0), workspace.CurrentCamera.CFrame)
+-- 1. CHỐNG VĂNG GAME & NOCLIP (NO-COLLISION)
+local NoclipConn
+local function SetNoclip(state)
+    if state then
+        if not NoclipConn then
+            NoclipConn = RunService.Stepped:Connect(function()
+                if LocalPlayer.Character then
+                    for _, p in pairs(LocalPlayer.Character:GetDescendants()) do
+                        if p:IsA("BasePart") then p.CanCollide = false end
+                    end
+                end
+            end)
+        end
+    else
+        if NoclipConn then NoclipConn:Disconnect() NoclipConn = nil end
+    end
+end
+
+-- 2. TWEEN DI CHUYỂN AN TOÀN
+local currentTween
+local function SafeTween(targetCFrame)
+    local char = LocalPlayer.Character
+    if not char or not char:FindFirstChild("HumanoidRootPart") then return end
+
+    local hrp = char.HumanoidRootPart
+    local dist = (hrp.Position - targetCFrame.Position).Magnitude
+    if dist < 5 then return end
+
+    SetNoclip(true)
+    local duration = dist / getgenv().KL_Hub.TweenSpeed
+    
+    if currentTween then currentTween:Cancel() end
+    currentTween = TweenService:Create(hrp, TweenInfo.new(duration, Enum.EasingStyle.Linear), {CFrame = targetCFrame})
+    currentTween:Play()
+
+    currentTween.Completed:Connect(function()
+        SetNoclip(false)
+    end)
+end
+
+-- 3. AUTO BẬT BUSOSHOKU HAKI (KING LEGACY REMOTE)
+task.spawn(function()
+    while task.wait(1) do
+        if getgenv().KL_Hub.AutoBuso and LocalPlayer.Character then
+            if not LocalPlayer.Character:FindFirstChild("HasBuso") then
+                pcall(function()
+                    ReplicatedStorage.Remotes.Functions.Buso:InvokeServer()
+                end)
+            end
+        end
+    end
 end)
 
--- =================================================================
--- 1. TẠO GIAO DIỆN GUI CỐ ĐỊNH & NÚT CẤU HÌNH
--- =================================================================
+-- 4. TÌM SEA EVENT TRONG KING LEGACY
+local function GetKingLegacyBoss()
+    for _, entity in pairs(Workspace:GetChildren()) do
+        if entity:FindFirstChild("Humanoid") and entity.Humanoid.Health > 0 and entity:FindFirstChild("HumanoidRootPart") then
+            local name = string.lower(entity.Name)
+            if name:find("sea king") or name:find("ghost ship") or name:find("hydra") or name:find("kraken") or name:find("sea monster") or name:find("drakenfyr") or name:find("beast") then
+                return entity
+            end
+        end
+    end
+    return nil
+end
+
+-- 5. TỰ ĐỘNG ĐÁNH VÀ XẢ SKILL
+local function ExecuteAttack()
+    local char = LocalPlayer.Character
+    if not char then return end
+
+    -- Equip Weapon
+    local tool = char:FindFirstChildOfClass("Tool") or LocalPlayer.Backpack:FindFirstChildOfClass("Tool")
+    if tool and tool.Parent == LocalPlayer.Backpack then
+        char.Humanoid:EquipTool(tool)
+    end
+
+    if tool then
+        tool:Activate()
+        
+        -- Spam Skill đã chọn
+        for skillKey, enabled in pairs(getgenv().KL_Hub.AutoSkills) do
+            if enabled then
+                VirtualInputManager:SendKeyEvent(true, Enum.KeyCode[skillKey], false, game)
+                task.wait(0.02)
+                VirtualInputManager:SendKeyEvent(false, Enum.KeyCode[skillKey], false, game)
+            end
+        end
+    end
+end
+
+-- 6. GOM RƯƠNG TRÊN BẢN ĐỒ
+local function CollectChests()
+    for _, v in pairs(Workspace:GetDescendants()) do
+        if getgenv().KL_Hub.AutoChest and (v.Name:find("Chest") or v.Name:find("Rương") or v.Name:find("Treasure")) then
+            local part = v:IsA("BasePart") and v or v:FindFirstChildWhichIsA("BasePart")
+            if part then
+                SafeTween(part.CFrame * CFrame.new(0, 3, 0))
+                task.wait(0.3)
+                
+                local prompt = v:FindFirstChildOfClass("ProximityPrompt") or part:FindFirstChildOfClass("ProximityPrompt")
+                if prompt then
+                    fireproximityprompt(prompt)
+                end
+            end
+        end
+    end
+end
+
+-- 7. SMART HOP SERVER
+local function SmartHopServer()
+    print("[King Legacy Hub] Đang nhảy Server mới...")
+    SetNoclip(false)
+    
+    local placeId = game.PlaceId
+    local success, result = pcall(function()
+        return game:HttpGet("https://games.roblox.com/v1/games/" .. placeId .. "/servers/Public?sortOrder=Desc&limit=100")
+    end)
+
+    if success and result then
+        local body = HttpService:JSONDecode(result)
+        if body and body.data then
+            for _, server in ipairs(body.data) do
+                if server.playing < server.maxPlayers and server.id ~= game.JobId and not VisitedServers[server.id] then
+                    VisitedServers[server.id] = true
+                    TeleportService:TeleportToPlaceInstance(placeId, server.id, LocalPlayer)
+                    task.wait(5)
+                    break
+                end
+            end
+        end
+    end
+end
+
+-- 8. GIAO DIỆN UI HUB ĐẸP MẮT (MOBILE & PC)
 local ScreenGui = Instance.new("ScreenGui")
-ScreenGui.Name = "KL_FullSkill_Gui"
-ScreenGui.ResetOnSpawn = false
-ScreenGui.Parent = (gethui and gethui()) or CoreGui or LocalPlayer:WaitForChild("PlayerGui")
+ScreenGui.Name = "KL_Ultimate_Hub"
+ScreenGui.Parent = (gethui and gethui()) or game:GetService("CoreGui") or LocalPlayer.PlayerGui
 
--- NÚT BẬT / TẮT MENU CỐ ĐỊNH Ở GÓC TRÁI MÀN HÌNH
-local ToggleMenuBtn = Instance.new("TextButton")
-ToggleMenuBtn.Size = UDim2.new(0, 100, 0, 32)
-ToggleMenuBtn.Position = UDim2.new(0, 15, 0.3, 0)
-ToggleMenuBtn.BackgroundColor3 = Color3.fromRGB(0, 255, 150)
-ToggleMenuBtn.BorderSizePixel = 0
-ToggleMenuBtn.Text = "⚙️ MENU: ẨN/HIỆN"
-ToggleMenuBtn.TextColor3 = Color3.fromRGB(15, 15, 20)
-ToggleMenuBtn.Font = Enum.Font.SourceSansBold
-ToggleMenuBtn.TextSize = 12
-ToggleMenuBtn.Active = true
-ToggleMenuBtn.Parent = ScreenGui
+local ToggleBtn = Instance.new("TextButton")
+ToggleBtn.Size = UDim2.new(0, 50, 0, 50)
+ToggleBtn.Position = UDim2.new(0, 15, 0.4, 0)
+ToggleBtn.BackgroundColor3 = Color3.fromRGB(255, 60, 60)
+ToggleBtn.Text = "KL"
+ToggleBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+ToggleBtn.Font = Enum.Font.SourceSansBold
+ToggleBtn.TextSize = 20
+ToggleBtn.Parent = ScreenGui
 
--- KHUNG MENU CHÍNH
 local MainFrame = Instance.new("Frame")
-MainFrame.Size = UDim2.new(0, 270, 0, 360)
-MainFrame.Position = UDim2.new(0, 125, 0.25, 0)
-MainFrame.BackgroundColor3 = Color3.fromRGB(18, 18, 24)
-MainFrame.BorderSizePixel = 1
-MainFrame.BorderColor3 = Color3.fromRGB(0, 255, 150)
-MainFrame.Active = true
-MainFrame.Draggable = false
+MainFrame.Size = UDim2.new(0, 320, 0, 380)
+MainFrame.Position = UDim2.new(0.5, -160, 0.5, -190)
+MainFrame.BackgroundColor3 = Color3.fromRGB(20, 20, 26)
+MainFrame.BorderSizePixel = 0
 MainFrame.Visible = true
+MainFrame.Active = true
+MainFrame.Draggable = true
 MainFrame.Parent = ScreenGui
 
-ToggleMenuBtn.MouseButton1Click:Connect(function()
+ToggleBtn.MouseButton1Click:Connect(function()
     MainFrame.Visible = not MainFrame.Visible
 end)
 
-local TitleBar = Instance.new("Frame")
-TitleBar.Size = UDim2.new(1, 0, 0, 30)
-TitleBar.BackgroundColor3 = Color3.fromRGB(30, 30, 42)
-TitleBar.BorderSizePixel = 0
-TitleBar.Parent = MainFrame
+local Title = Instance.new("TextLabel")
+Title.Size = UDim2.new(1, 0, 0, 35)
+Title.BackgroundColor3 = Color3.fromRGB(30, 30, 40)
+Title.Text = "👑 KING LEGACY HUB | SEA EVENT"
+Title.TextColor3 = Color3.fromRGB(255, 215, 0)
+Title.Font = Enum.Font.SourceSansBold
+Title.TextSize = 14
+Title.Parent = MainFrame
 
-local TitleText = Instance.new("TextLabel")
-TitleText.Size = UDim2.new(1, -10, 1, 0)
-TitleText.Position = UDim2.new(0, 10, 0, 0)
-TitleText.BackgroundTransparency = 1
-TitleText.Text = "KING LEGACY: AUTO FARM + SKILL"
-TitleText.TextColor3 = Color3.fromRGB(0, 255, 150)
-TitleText.Font = Enum.Font.SourceSansBold
-TitleText.TextSize = 12
-TitleText.TextXAlignment = Enum.TextXAlignment.Left
-TitleText.Parent = TitleBar
-
-local StatusLabel = Instance.new("TextLabel")
-StatusLabel.Size = UDim2.new(1, -16, 0, 35)
-StatusLabel.Position = UDim2.new(0, 8, 0, 35)
-StatusLabel.BackgroundColor3 = Color3.fromRGB(25, 25, 32)
-StatusLabel.TextColor3 = Color3.fromRGB(0, 255, 150)
-StatusLabel.Text = "⚡ Tùy chỉnh Skill & Vũ khí!"
-StatusLabel.TextWrapped = true
-StatusLabel.Font = Enum.Font.SourceSansBold
-StatusLabel.TextSize = 11
-StatusLabel.Parent = MainFrame
-
--- SCROLL CHỨA CÁC NÚT BẤM CẤU HÌNH
 local Scroll = Instance.new("ScrollingFrame")
-Scroll.Size = UDim2.new(1, -16, 0, 270)
-Scroll.Position = UDim2.new(0, 8, 0, 75)
-Scroll.BackgroundColor3 = Color3.fromRGB(25, 25, 32)
-Scroll.BorderSizePixel = 0
-Scroll.CanvasSize = UDim2.new(0, 0, 0, 320)
+Scroll.Size = UDim2.new(1, -20, 1, -45)
+Scroll.Position = UDim2.new(0, 10, 0, 40)
+Scroll.BackgroundTransparency = 1
+Scroll.CanvasSize = UDim2.new(0, 0, 0, 450)
 Scroll.Parent = MainFrame
 
 local UIList = Instance.new("UIListLayout")
 UIList.Parent = Scroll
-UIList.Padding = UDim.new(0, 5)
+UIList.Padding = UDim.new(0, 6)
 
-local function CreateButton(text, bg, callback)
+local function CreateToggle(name, default, callback)
     local btn = Instance.new("TextButton")
-    btn.Size = UDim2.new(1, -8, 0, 28)
-    btn.BackgroundColor3 = bg
-    btn.Text = text
+    btn.Size = UDim2.new(1, 0, 0, 32)
+    btn.BackgroundColor3 = default and Color3.fromRGB(0, 180, 120) or Color3.fromRGB(40, 40, 50)
+    btn.Text = name .. ": " .. (default and "ON" or "OFF")
     btn.TextColor3 = Color3.fromRGB(255, 255, 255)
     btn.Font = Enum.Font.SourceSansBold
-    btn.TextSize = 11
+    btn.TextSize = 12
     btn.Parent = Scroll
-    btn.MouseButton1Click:Connect(function() callback(btn) end)
-    return btn
-end
-
--- 1. NÚT AUTO FARM
-CreateButton("AUTO FARM: " .. (Config.FarmNearest and "BẬT" or "TẮT"), Config.FarmNearest and Color3.fromRGB(0, 180, 180) or Color3.fromRGB(60, 60, 70), function(btn)
-    Config.FarmNearest = not Config.FarmNearest
-    btn.Text = "AUTO FARM: " .. (Config.FarmNearest and "BẬT" or "TẮT")
-    btn.BackgroundColor3 = Config.FarmNearest and Color3.fromRGB(0, 180, 180) or Color3.fromRGB(60, 60, 70)
-end)
-
--- 2. NÚT CHỌN VŨ KHÍ CHÍNH
-CreateButton("VŨ KHÍ CHÍNH: " .. Config.MainWeapon, Color3.fromRGB(0, 130, 200), function(btn)
-    if Config.MainWeapon == "Melee" then Config.MainWeapon = "Sword"
-    elseif Config.MainWeapon == "Sword" then Config.MainWeapon = "Blox Fruit"
-    else Config.MainWeapon = "Melee" end
-    btn.Text = "VŨ KHÍ CHÍNH: " .. Config.MainWeapon
-end)
-
--- 3. NÚT CHỈNH KHOẢNG CÁCH ĐÁNH
-CreateButton("KHOẢNG CÁCH: " .. Config.AttackDistance .. "M", Color3.fromRGB(120, 80, 200), function(btn)
-    if Config.AttackDistance == 7 then Config.AttackDistance = 5
-    elseif Config.AttackDistance == 5 then Config.AttackDistance = 9
-    else Config.AttackDistance = 7 end
-    btn.Text = "KHOẢNG CÁCH: " .. Config.AttackDistance .. "M"
-end)
-
--- 4. BẬT/TẮT CÁC SKILL TẤN CÔNG (Z, X, C, V, E)
-local skillKeys = {"Z", "X", "C", "V", "E"}
-for _, key in ipairs(skillKeys) do
-    local isEnabled = Config.UseSkills[key]
-    CreateButton("DÙNG SKILL [" .. key .. "]: " .. (isEnabled and "BẬT" or "TẮT"), isEnabled and Color3.fromRGB(40, 160, 80) or Color3.fromRGB(80, 80, 90), function(btn)
-        Config.UseSkills[key] = not Config.UseSkills[key]
-        local current = Config.UseSkills[key]
-        btn.Text = "DÙNG SKILL [" .. key .. "]: " .. (current and "BẬT" or "TẮT")
-        btn.BackgroundColor3 = current and Color3.fromRGB(40, 160, 80) or Color3.fromRGB(80, 80, 90)
-    end)
-end
-
--- =================================================================
--- 2. TRANG BỊ VŨ KHÍ & BỘ LỌC QUÁI / NPC
--- =================================================================
-local function EquipWeaponByType(weaponType)
-    local char = LocalPlayer.Character
-    local backpack = LocalPlayer:FindFirstChild("Backpack")
-    if not char or not backpack then return false end
-
-    local allTools = {}
-    for _, item in pairs(backpack:GetChildren()) do if item:IsA("Tool") then table.insert(allTools, item) end end
-    for _, item in pairs(char:GetChildren()) do if item:IsA("Tool") then table.insert(allTools, item) end end
-
-    for _, tool in pairs(allTools) do
-        local name = tool.Name:lower()
-        local isMatch = false
-
-        if weaponType == "Melee" and (name:find("style") or name:find("combat") or name:find("leg") or name:find("fist") or name:find("claw") or name:find("karate")) then isMatch = true
-        elseif weaponType == "Sword" and not name:find("fruit") and not name:find("style") and not name:find("combat") then isMatch = true
-        elseif weaponType == "Blox Fruit" and (name:find("fruit") or tool:FindFirstChild("Fruit")) then isMatch = true end
-
-        if isMatch then
-            if tool.Parent ~= char then char.Humanoid:EquipTool(tool) task.wait(0.05) end
-            return true
-        end
-    end
-    return false
-end
-
-local function IsEnemyMob(obj)
-    if not obj:IsA("Model") then return false end
-    local hum = obj:FindFirstChildOfClass("Humanoid")
-    if not hum or hum.Health <= 0 or hum.MaxHealth <= 0 then return false end
     
-    if Players:GetPlayerFromCharacter(obj) then return false end
-
-    if obj:FindFirstChildWhichIsA("ProximityPrompt", true) then return false end
-    if obj:FindFirstChild("Dialog") or obj:FindFirstChild("Quest") or obj:FindFirstChild("NPC") then return false end
-    if obj:FindFirstChild("Talk") or obj:FindFirstChild("Shop") then return false end
-
-    local name = obj.Name:lower()
-    if name:find("quest") or name:find("dealer") or name:find("seller") or name:find("spawn") or name:find("spin") then 
-        return false 
-    end
-
-    return true
-end
-
-local function FindNearestMob()
-    local char = LocalPlayer.Character
-    if not char or not char:FindFirstChild("HumanoidRootPart") then return nil end
-    local myPos = char.HumanoidRootPart.Position
-
-    local closestMob = nil
-    local minDistance = Config.MaxMobDistance
-    local searchFolder = Workspace:FindFirstChild("Monster") or Workspace:FindFirstChild("Enemies") or Workspace
-
-    for _, obj in pairs(searchFolder:GetDescendants()) do
-        if IsEnemyMob(obj) then
-            local part = obj:FindFirstChild("HumanoidRootPart") or obj.PrimaryPart or obj:FindFirstChildWhichIsA("BasePart")
-            if part then
-                local dist = (part.Position - myPos).Magnitude
-                if dist < minDistance then
-                    minDistance = dist
-                    closestMob = obj
-                end
-            end
-        end
-    end
-    return closestMob
-end
-
--- =================================================================
--- 3. HÀM TẤN CÔNG (THỰC THI SKILL ĐÃ CHỌN + M1 VŨ KHÍ CHÍNH)
--- =================================================================
-local function AttackTarget(targetObj)
-    isAttacking = true
-    StatusLabel.Text = "⚔️ ĐANG TẤN CÔNG: " .. targetObj.Name
-    StatusLabel.TextColor3 = Color3.fromRGB(255, 170, 0)
-
-    local char = LocalPlayer.Character
-    if not char or not char:FindFirstChild("HumanoidRootPart") then 
-        isAttacking = false
-        return 
-    end
-
-    local hrp = char.HumanoidRootPart
-
-    -- TRIỆT TIÊU TRỌNG LỰC (KHÓA CỨNG LƠ LỬNG)
-    local bv = hrp:FindFirstChild("KL_FreezeVel") or Instance.new("BodyVelocity")
-    bv.Name = "KL_FreezeVel"
-    bv.MaxForce = Vector3.new(1e9, 1e9, 1e9)
-    bv.Velocity = Vector3.new(0, 0, 0)
-    bv.Parent = hrp
-
-    task.spawn(function()
-        while targetObj and targetObj.Parent and isAttacking do
-            local hum = targetObj:FindFirstChildOfClass("Humanoid")
-            if not hum or hum.Health <= 0 then break end
-
-            if char and char:FindFirstChild("HumanoidRootPart") then
-                local targetPart = targetObj:FindFirstChild("HumanoidRootPart") or targetObj.PrimaryPart or targetObj:FindFirstChildWhichIsA("BasePart")
-                
-                if targetPart then
-                    -- Tắt va chạm
-                    for _, part in pairs(char:GetChildren()) do
-                        if part:IsA("BasePart") then part.CanCollide = false end
-                    end
-
-                    -- Vị trí đứng trên đầu quái
-                    local mobPosition = targetPart.Position
-                    local standPosition = mobPosition + Vector3.new(0, Config.AttackDistance, 0)
-
-                    -- CỐ ĐỊNH TƯ THẾ: ĐỨNG THẲNG & CÚI MẶT NHÌN XUỐNG QUÁI
-                    hrp.CFrame = CFrame.lookAt(standPosition, mobPosition)
-
-                    -- 1. Trang bị Vũ khí chính đã chọn
-                    EquipWeaponByType(Config.MainWeapon)
-
-                    -- 2. Xả các Skill được BẬT (Z, X, C, V, E)
-                    for key, enabled in pairs(Config.UseSkills) do
-                        if enabled then
-                            VirtualInputManager:SendKeyEvent(true, Enum.KeyCode[key], false, game)
-                            task.wait(0.02)
-                            VirtualInputManager:SendKeyEvent(false, Enum.KeyCode[key], false, game)
-                        end
-                    end
-
-                    -- 3. Chém đòn M1
-                    VirtualUser:Button1Down(Vector2.new(0, 0), workspace.CurrentCamera.CFrame)
-                    VirtualUser:ClickButton1(Vector2.new(0, 0))
-                end
-            end
-            task.wait(0.05)
-        end
-
-        -- Hủy khóa lơ lửng khi hạ xong quái
-        if bv then bv:Destroy() end
-        isAttacking = false
+    local state = default
+    btn.MouseButton1Click:Connect(function()
+        state = not state
+        btn.Text = name .. ": " .. (state and "ON" or "OFF")
+        btn.BackgroundColor3 = state and Color3.fromRGB(0, 180, 120) or Color3.fromRGB(40, 40, 50)
+        callback(state)
     end)
 end
 
--- =================================================================
--- 4. VÒNG LẶP CHÍNH
--- =================================================================
+-- CÁC NÚT ĐIỀU KHIỂN SCRIPT
+CreateToggle("Auto Sea Event", getgenv().KL_Hub.AutoSeaEvent, function(s) getgenv().KL_Hub.AutoSeaEvent = s end)
+CreateToggle("Auto Attack", getgenv().KL_Hub.AutoAttack, function(s) getgenv().KL_Hub.AutoAttack = s end)
+CreateToggle("Auto Collect Chests", getgenv().KL_Hub.AutoChest, function(s) getgenv().KL_Hub.AutoChest = s end)
+CreateToggle("Auto Hop Server", getgenv().KL_Hub.AutoHop, function(s) getgenv().KL_Hub.AutoHop = s end)
+CreateToggle("Auto Buso Haki", getgenv().KL_Hub.AutoBuso, function(s) getgenv().KL_Hub.AutoBuso = s end)
+
+-- NÚT BẬT/TẮT SKILL TỰ ĐỘNG
+for _, skill in ipairs({"Z", "X", "C", "V", "E"}) do
+    CreateToggle("Use Skill [" .. skill .. "]", getgenv().KL_Hub.AutoSkills[skill], function(s)
+        getgenv().KL_Hub.AutoSkills[skill] = s
+    end)
+end
+
+-- 9. MAIN AUTOMATION LOOP
 task.spawn(function()
-    while true do
-        if not isAttacking and Config.FarmNearest then
-            local mobObj = FindNearestMob()
-            if mobObj then
-                AttackTarget(mobObj)
+    local noBossTimer = 0
+    while task.wait(0.2) do
+        if getgenv().KL_Hub.AutoSeaEvent then
+            local boss = GetKingLegacyBoss()
+            
+            if boss and boss:FindFirstChild("HumanoidRootPart") and boss.Humanoid.Health > 0 then
+                noBossTimer = 0
+                
+                -- Đứng an toàn trên đầu Sea Event
+                local targetCFrame = boss.HumanoidRootPart.CFrame * CFrame.new(0, getgenv().KL_Hub.SafeDistance, 0)
+                SafeTween(targetCFrame)
+
+                if getgenv().KL_Hub.AutoAttack then
+                    ExecuteAttack()
+                end
             else
-                StatusLabel.Text = "🔍 Đang tìm quái gần nhất..."
-                StatusLabel.TextColor3 = Color3.fromRGB(0, 255, 150)
+                -- Tự động gom rương nếu không thấy Boss
+                if getgenv().KL_Hub.AutoChest then
+                    CollectChests()
+                end
+
+                -- Đếm thời gian đỗ bến để Hop Server
+                noBossTimer = noBossTimer + 0.2
+                if getgenv().KL_Hub.AutoHop and noBossTimer >= getgenv().KL_Hub.HopDelay then
+                    SmartHopServer()
+                    noBossTimer = 0
+                end
             end
         end
-        task.wait(0.8)
     end
 end)
