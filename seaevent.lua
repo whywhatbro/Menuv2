@@ -1,11 +1,10 @@
 -- =================================================================
--- KING LEGACY - AUTO TOGGLE BROWSER JOIN FIX (BẢN TELEPORT TRỰC TIẾP)
+-- KING LEGACY - AUTO TOGGLE BROWSER JOIN FIX (BẢN BẮT SỰ KIỆN GỐC)
 -- =================================================================
 
 local Players = game:GetService("Players")
 local LocalPlayer = Players.LocalPlayer
 local PlayerGui = LocalPlayer:WaitForChild("PlayerGui")
-local TeleportService = game:GetService("TeleportService")
 
 local BossCycles = {
     ["Sea King"] = 3600,
@@ -127,17 +126,8 @@ local function ScanAndFix()
 
                 if timeLeft > 0 and timeLeft <= 300 then
                     count = count + 1
-                    local parentFrame = item.Parent
+                    local rowContainer = item.Parent.Parent -- Khung chứa toàn bộ thông tin của dòng server này
                     
-                    -- Quét tìm thông tin mã server ẩn hoặc tên định danh trong thành phần giao diện gốc
-                    local targetId = nil
-                    for _, obj in pairs(parentFrame:GetDescendants()) do
-                        if obj:IsA("TextButton") and obj.Name ~= "" and obj.Name ~= "Join" then
-                            targetId = obj.Name
-                            break
-                        end
-                    end
-
                     local ServerItem = Instance.new("Frame")
                     ServerItem.Size = UDim2.new(1, 0, 0, 42)
                     ServerItem.BackgroundColor3 = Color3.fromRGB(30, 30, 42)
@@ -164,17 +154,45 @@ local function ScanAndFix()
                     JoinBtn.Parent = ServerItem
 
                     JoinBtn.MouseButton1Click:Connect(function()
-                        JoinBtn.Text = "Đang dịch chuyển..."
+                        JoinBtn.Text = "Đang vào..."
                         
-                        -- Thực hiện lệnh Teleport trực tiếp qua hệ thống Roblox
-                        pcall(function()
-                            if targetId and #targetId > 10 then
-                                TeleportService:TeleportToPlaceInstance(game.PlaceId, targetId, LocalPlayer)
-                            else
-                                -- Nếu không lấy được mã riêng, tự động chuyển đến một server khác ngẫu nhiên trong khoảng thời gian này
-                                TeleportService:Teleport(game.PlaceId, LocalPlayer)
+                        -- Quét tìm đúng nút Join gốc nằm trong dòng server cụ thể này
+                        local originalJoinButton = nil
+                        for _, obj in pairs(rowContainer:GetDescendants()) do
+                            if obj:IsA("TextButton") and (obj.Text:lower() == "join" or obj.Name:lower():find("join")) then
+                                originalJoinButton = obj
+                                break
                             end
-                        end)
+                        end
+                        
+                        -- Nếu không tìm thấy bằng chữ, quét toàn bộ nút bấm nằm ở nửa bên phải của dòng server
+                        if not originalJoinButton then
+                            for _, obj in pairs(rowContainer:GetDescendants()) do
+                                if obj:IsA("TextButton") and obj ~= JoinBtn then
+                                    originalJoinButton = obj
+                                    break
+                                end
+                            end
+                        end
+
+                        if originalJoinButton then
+                            pcall(function()
+                                -- Kích hoạt trực tiếp toàn bộ kết nối bên trong nút Join gốc của game
+                                if getconnections then
+                                    for _, conn in pairs(getconnections(originalJoinButton.MouseButton1Click)) do
+                                        conn:Fire()
+                                    end
+                                    for _, conn in pairs(getconnections(originalJoinButton.Activated)) do
+                                        conn:Fire()
+                                    end
+                                end
+                                if firesignal then
+                                    firesignal(originalJoinButton.MouseButton1Click)
+                                end
+                            end)
+                        else
+                            JoinBtn.Text = "Lỗi nút gốc!"
+                        end
                     end)
                 end
             end
