@@ -1,5 +1,5 @@
 -- =================================================================
--- KING LEGACY - AUTO HOP & NHẶT RƯƠNG (CÓ TÙY CHỈNH THỜI GIAN)
+-- KING LEGACY - SỬA LỖI AUTO NHẶT RƯƠNG (CHỈ NHẶT ĐÚNG RƯƠNG)
 -- =================================================================
 
 local Players = game:GetService("Players")
@@ -12,10 +12,10 @@ local Workspace = game:GetService("Workspace")
 local VisitedServers = {}
 local AutoHopRunning = false
 local AutoChestRunning = false
-local HopDelay = 15 -- Thời gian mặc định chuyển server (giây)
+local HopDelay = 15
 
 local ScreenGui = Instance.new("ScreenGui")
-ScreenGui.Name = "KL_ChestHopTimer"
+ScreenGui.Name = "KL_ChestHopFixed"
 ScreenGui.Parent = CoreGui
 
 local ToggleBtn = Instance.new("TextButton")
@@ -43,13 +43,12 @@ end)
 local Title = Instance.new("TextLabel")
 Title.Size = UDim2.new(1, 0, 0, 30)
 Title.BackgroundColor3 = Color3.fromRGB(30, 30, 42)
-Title.Text = "AUTO HOP & NHẶT RƯƠNG (11-12 NGƯỜI)"
+Title.Text = "AUTO RƯƠNG CHUẨN (ĐÃ FIX LỖI BOSS)"
 Title.TextColor3 = Color3.fromRGB(0, 255, 180)
 Title.Font = Enum.Font.SourceSansBold
 Title.TextSize = 12
 Title.Parent = MainFrame
 
--- Khung nhập thời gian hop
 local TimeBoxContainer = Instance.new("Frame")
 TimeBoxContainer.Size = UDim2.new(1, -16, 0, 30)
 TimeBoxContainer.Position = UDim2.new(0, 8, 0, 38)
@@ -76,17 +75,14 @@ TimeTextBox.Font = Enum.Font.SourceSansBold
 TimeTextBox.TextSize = 12
 TimeTextBox.Parent = TimeBoxContainer
 
-TimeTextBox.FocusLost:Connect(function(enterPressed)
+TimeTextBox.FocusLost:Connect(function()
     local val = tonumber(TimeTextBox.Text)
     if val and val >= 3 then
         HopDelay = val
-        TimeTextBox.Text = tostring(HopDelay)
-    else
-        TimeTextBox.Text = tostring(HopDelay)
     end
+    TimeTextBox.Text = tostring(HopDelay)
 end)
 
--- Nút Bật/Tắt Auto Hop 11-12 người
 local AutoHopBtn = Instance.new("TextButton")
 AutoHopBtn.Size = UDim2.new(1, -16, 0, 32)
 AutoHopBtn.Position = UDim2.new(0, 8, 0, 74)
@@ -97,7 +93,6 @@ AutoHopBtn.Font = Enum.Font.SourceSansBold
 AutoHopBtn.TextSize = 11
 AutoHopBtn.Parent = MainFrame
 
--- Nút Bật/Tắt Auto Nhặt Rương
 local AutoChestBtn = Instance.new("TextButton")
 AutoChestBtn.Size = UDim2.new(1, -16, 0, 32)
 AutoChestBtn.Position = UDim2.new(0, 8, 0, 111)
@@ -119,23 +114,35 @@ local UIList = Instance.new("UIListLayout")
 UIList.Parent = Scroll
 UIList.Padding = UDim.new(0, 4)
 
--- Hệ thống tự động nhặt rương
+-- Bộ lọc rương chuẩn (Chỉ nhận diện rương thật, loại bỏ hoàn toàn Boss)
 task.spawn(function()
     while true do
-        task.wait(0.5)
+        task.wait(0.4)
         if AutoChestRunning and LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
             local hrp = LocalPlayer.Character.HumanoidRootPart
+            
             for _, obj in pairs(Workspace:GetDescendants()) do
                 if not AutoChestRunning then break end
-                if obj:IsA("Model") and (obj.Name:lower():find("chest") or obj.Name:lower():find("box")) then
-                    local part = obj.PrimaryPart or obj:FindFirstChildWhichIsA("BasePart")
+                local name = obj.Name:lower()
+                
+                -- Kiểm tra nếu là rương thật và KHÔNG phải là Boss hoặc các thực thể sống/NPC
+                if (name:find("chest") or name == "box" or name:find("treasure")) 
+                    and not name:find("seaking") 
+                    and not name:find("hydra") 
+                    and not name:find("boss") 
+                    and not name:find("player") then
+                    
+                    local part = nil
+                    if obj:IsA("Model") then
+                        part = obj.PrimaryPart or obj:FindFirstChildWhichIsA("BasePart")
+                    elseif obj:IsA("BasePart") then
+                        part = obj
+                    end
+                    
                     if part then
                         hrp.CFrame = part.CFrame + Vector3.new(0, 3, 0)
-                        task.wait(0.3)
+                        task.wait(0.25)
                     end
-                elseif obj:IsA("BasePart") and (obj.Name:lower():find("chest") or obj.Name:lower():find("box")) then
-                    hrp.CFrame = obj.CFrame + Vector3.new(0, 3, 0)
-                    task.wait(0.3)
                 end
             end
         end
@@ -170,7 +177,6 @@ AutoHopBtn.MouseButton1Click:Connect(function()
         
         task.spawn(function()
             while AutoHopRunning do
-                -- Đợi số giây do người dùng tùy chỉnh trong TextBox trước khi thực hiện nhảy server tiếp theo
                 local elapsed = 0
                 while elapsed < HopDelay and AutoHopRunning do
                     task.wait(1)
