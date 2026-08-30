@@ -1,5 +1,5 @@
 -- =================================================================
--- KING LEGACY - AUTO TOGGLE BROWSER JOIN FIX (HOÀN CHỈNH)
+-- KING LEGACY - AUTO TOGGLE BROWSER JOIN FIX (BẢN TỐI ƯU SỐ 3)
 -- =================================================================
 
 local Players = game:GetService("Players")
@@ -154,34 +154,41 @@ local function ScanAndFix()
                     JoinBtn.TextSize = 11
                     JoinBtn.Parent = ServerItem
 
-                    JoinBtn.MouseButton1Click:Connect(function()
-                        JoinBtn.Text = "Đang vào..."
+                    -- Dùng sự kiện Activated thay cho MouseButton1Click để nhận diện click chuẩn hơn
+                    JoinBtn.Activated:Connect(function()
+                        JoinBtn.Text = "Đang xử lý..."
                         
-                        local success = pcall(function()
-                            local foundJobId = nil
-                            for _, v in pairs(parentFrame:GetDescendants()) do
-                                if v:IsA("ObjectValue") then
-                                    foundJobId = v.Value
+                        -- Quét tìm nút Join gốc của game và kích hoạt trực tiếp connection
+                        local foundOriginal = false
+                        if parentFrame then
+                            for _, child in pairs(parentFrame:GetChildren()) do
+                                if child:IsA("TextButton") and (child.Text == "Join" or child.Text:lower() == "join") then
+                                    foundOriginal = true
+                                    local success, err = pcall(function()
+                                        if getconnections then
+                                            for _, conn in pairs(getconnections(child.MouseButton1Click)) do
+                                                conn:Fire()
+                                            end
+                                            for _, conn in pairs(getconnections(child.Activated)) do
+                                                conn:Fire()
+                                            end
+                                        end
+                                    end)
+                                    
+                                    -- Nếu cách trên không chạy, thử giả lập click trực tiếp vào nút gốc của game
+                                    if not success then
+                                        child.Active = true
+                                        if firesignal then
+                                            firesignal(child.MouseButton1Click)
+                                        end
+                                    end
                                     break
                                 end
                             end
-                            
-                            if foundJobId then
-                                TeleportService:TeleportToPlaceInstance(game.PlaceId, foundJobId, LocalPlayer)
-                            else
-                                for _, child in pairs(parentFrame:GetChildren()) do
-                                    if child:IsA("TextButton") and child.Text == "Join" then
-                                        local conns = getconnections and getconnections(child.MouseButton1Click)
-                                        if conns then
-                                            for _, conn in pairs(conns) do conn:Fire() end
-                                        end
-                                    end
-                                end
-                            end
-                        end)
+                        end
                         
-                        if not success then
-                            JoinBtn.Text = "Lỗi Join!"
+                        if not foundOriginal then
+                            JoinBtn.Text = "Không tìm thấy nút!"
                         end
                     end)
                 end
