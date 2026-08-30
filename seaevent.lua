@@ -1,5 +1,5 @@
 -- =================================================================
--- KING LEGACY - AUTO RƯƠNG CLEAN (FIX LỖI HIỂN THỊ MENU)
+-- KING LEGACY - AUTO RƯƠNG (LOẠI BỎ HOÀN TOÀN HOẠT ẢNH & NHIỆM VỤ)
 -- =================================================================
 
 local Players = game:GetService("Players")
@@ -15,7 +15,7 @@ local AutoChestRunning = false
 local HopDelay = 15
 
 local ScreenGui = Instance.new("ScreenGui")
-ScreenGui.Name = "KL_ChestHopCleanFix"
+ScreenGui.Name = "KL_ChestFinalFix"
 ScreenGui.Parent = CoreGui
 
 local ToggleBtn = Instance.new("TextButton")
@@ -43,10 +43,10 @@ end)
 local Title = Instance.new("TextLabel")
 Title.Size = UDim2.new(1, 0, 0, 30)
 Title.BackgroundColor3 = Color3.fromRGB(30, 30, 42)
-Title.Text = "AUTO RƯƠNG CLEAN (BỎ GACHA & NHIỆM VỤ)"
+Title.Text = "AUTO RƯƠNG CLEAN (FIX HOẠT ẢNH TRÁI)"
 Title.TextColor3 = Color3.fromRGB(0, 255, 180)
 Title.Font = Enum.Font.SourceSansBold
-Title.TextSize = 11
+Title.TextSize = 10
 Title.Parent = MainFrame
 
 local TimeBoxContainer = Instance.new("Frame")
@@ -114,6 +114,7 @@ local UIList = Instance.new("UIListLayout")
 UIList.Parent = Scroll
 UIList.Padding = UDim.new(0, 4)
 
+-- Bộ lọc siêu sạch: Loại bỏ hoạt ảnh mở trái, gacha, hiệu ứng, thùng nhiệm vụ
 task.spawn(function()
     while true do
         task.wait(0.4)
@@ -122,9 +123,14 @@ task.spawn(function()
             
             for _, obj in pairs(Workspace:GetDescendants()) do
                 if not AutoChestRunning then break end
-                local name = obj.Name:lower()
                 
-                local isChest = name:find("chest") or name == "box" or name:find("treasure")
+                local name = obj.Name:lower()
+                local parentName = obj.Parent and obj.Parent.Name:lower() or ""
+                
+                -- Kiểm tra xem có phải tên rương báu vật chuẩn không
+                local isChest = name:find("chest") or name:find("treasure")
+                
+                -- Danh sách từ khóa loại trừ tuyệt đối (bao gồm cả hoạt ảnh, hiệu ứng, gacha, nhiệm vụ)
                 local isExcluded = name:find("seaking") 
                     or name:find("hydra") 
                     or name:find("boss") 
@@ -135,6 +141,14 @@ task.spawn(function()
                     or name:find("quest")
                     or name:find("delivery")
                     or name:find("mission")
+                    or name:find("effect")
+                    or name:find("anim")
+                    or name:find("visual")
+                    or name:find("fx")
+                    or parentName:find("quest")
+                    or parentName:find("daily")
+                    or parentName:find("gacha")
+                    or parentName:find("effect")
                 
                 if isChest and not isExcluded then
                     local part = nil
