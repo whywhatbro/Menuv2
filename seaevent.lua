@@ -1,5 +1,5 @@
 -- =================================================================
--- KING LEGACY - CHỈ NHẶT RƯƠNG EVENT (ĐÃ LOẠI BỎ SKULL PIRATE)
+-- KING LEGACY - AUTO RƯƠNG EVENT TỐI ƯU (KHÔNG LAG, CHUẨN RƯƠNG BOSS)
 -- =================================================================
 
 local Players = game:GetService("Players")
@@ -15,7 +15,7 @@ local AutoChestRunning = false
 local HopDelay = 15
 
 local ScreenGui = Instance.new("ScreenGui")
-ScreenGui.Name = "KL_OnlyEventChestClean"
+ScreenGui.Name = "KL_EventChestOptimized"
 ScreenGui.Parent = CoreGui
 
 local ToggleBtn = Instance.new("TextButton")
@@ -43,7 +43,7 @@ end)
 local Title = Instance.new("TextLabel")
 Title.Size = UDim2.new(1, 0, 0, 30)
 Title.BackgroundColor3 = Color3.fromRGB(30, 30, 42)
-Title.Text = "AUTO RƯƠNG EVENT (FIX LỖI SKULL PIRATE)"
+Title.Text = "AUTO RƯƠNG EVENT (ĐÃ FIX LAG & RƯƠNG BOSS)"
 Title.TextColor3 = Color3.fromRGB(0, 255, 180)
 Title.Font = Enum.Font.SourceSansBold
 Title.TextSize = 9
@@ -114,51 +114,36 @@ local UIList = Instance.new("UIListLayout")
 UIList.Parent = Scroll
 UIList.Padding = UDim.new(0, 4)
 
--- Bộ lọc sạch sâu: Loại bỏ hoàn toàn Skull Pirate và chỉ bắt rương Sea King, Ghost Ship, Hydra chuẩn
+-- Thuật toán tối ưu: Chỉ tìm kiếm trực tiếp trong các khu vực sự kiện, không quét tràn lan gây lag
 task.spawn(function()
     while true do
-        task.wait(0.4)
+        task.wait(1) -- Giãn thời gian kiểm tra để game hoàn toàn mượt mà, không bị giật
         if AutoChestRunning and LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
             local hrp = LocalPlayer.Character.HumanoidRootPart
             
-            for _, obj in pairs(Workspace:GetDescendants()) do
+            -- Danh sách các tên thư mục hoặc từ khóa định danh đặc thù của rương Sea King / Ghost Ship / Hydra
+            for _, obj in pairs(Workspace:GetChildren()) do
                 if not AutoChestRunning then break end
                 
                 local name = obj.Name:lower()
-                local parentName = obj.Parent and obj.Parent.Name:lower() or ""
                 
-                -- Gom toàn bộ tên đường dẫn tổ tiên để kiểm tra
-                local fullName = name .. " " .. parentName
-                local currentParent = obj.Parent
-                while currentParent and currentParent ~= Workspace do
-                    fullName = fullName .. " " .. currentParent.Name:lower()
-                    currentParent = currentParent.Parent
-                end
-                
-                -- CHẶN TRỰC TIẾP QUÁI VÀ CÁC THỰC THỂ KHÔNG PHẢI RƯƠNG EVENT
-                local isSkullPirate = fullName:find("skull pirate") or fullName:find("skullpirate") or fullName:find("bandit") or fullName:find("marine") or fullName:find("soldier")
-                
-                if not isSkullPirate then
-                    -- Kiểm tra xem có phải rương sự kiện biển không
-                    local isChest = name:find("chest") or name:find("reward")
-                    local isEventTarget = fullName:find("seaking") 
-                        or fullName:find("sea king") 
-                        or fullName:find("ghost") 
-                        or fullName:find("ship") 
-                        or fullName:find("hydra")
-                    
-                    if isChest and isEventTarget then
-                        local part = nil
-                        if obj:IsA("Model") then
-                            part = obj.PrimaryPart or obj:FindFirstChildWhichIsA("BasePart")
-                        elseif obj:IsA("BasePart") then
-                            part = obj
-                        end
-                        
-                        if part then
-                            local pos = part.Position
-                            hrp.CFrame = CFrame.new(pos + Vector3.new(0, 3, 0))
-                            task.wait(0.25)
+                -- Chỉ quét các vật thể/thư mục liên quan đến sự kiện biển lớn
+                if name:find("seaking") or name:find("sea king") or name:find("ghost") or name:find("ship") or name:find("hydra") or name:find("event") then
+                    for _, child in pairs(obj:GetDescendants()) do
+                        local cName = child.Name:lower()
+                        if cName:find("chest") or cName:find("reward") then
+                            local part = nil
+                            if child:IsA("Model") then
+                                part = child.PrimaryPart or child:FindFirstChildWhichIsA("BasePart")
+                            elseif child:IsA("BasePart") then
+                                part = child
+                            end
+                            
+                            if part then
+                                local pos = part.Position
+                                hrp.CFrame = CFrame.new(pos + Vector3.new(0, 3, 0))
+                                task.wait(0.5)
+                            end
                         end
                     end
                 end
