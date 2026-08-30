@@ -1,5 +1,5 @@
 -- =================================================================
--- KING LEGACY - AUTO RƯƠNG (CHỈ NHẶT RƯƠNG THƯỜNG, NÉ HOÀN TOÀN RƯƠNG BOSS)
+-- KING LEGACY - CHỈ NHẶT RƯƠNG EVENT (SEA KING, GHOST SHIP, HYDRA)
 -- =================================================================
 
 local Players = game:GetService("Players")
@@ -15,7 +15,7 @@ local AutoChestRunning = false
 local HopDelay = 15
 
 local ScreenGui = Instance.new("ScreenGui")
-ScreenGui.Name = "KL_ChestStrictBossFix"
+ScreenGui.Name = "KL_OnlyEventChest"
 ScreenGui.Parent = CoreGui
 
 local ToggleBtn = Instance.new("TextButton")
@@ -43,10 +43,10 @@ end)
 local Title = Instance.new("TextLabel")
 Title.Size = UDim2.new(1, 0, 0, 30)
 Title.BackgroundColor3 = Color3.fromRGB(30, 30, 42)
-Title.Text = "AUTO RƯƠNG (ĐÃ CHẶN RƯƠNG BOSS)"
+Title.Text = "AUTO RƯƠNG EVENT (SEA KING / GHOST / HYDRA)"
 Title.TextColor3 = Color3.fromRGB(0, 255, 180)
 Title.Font = Enum.Font.SourceSansBold
-Title.TextSize = 10
+Title.TextSize = 9
 Title.Parent = MainFrame
 
 local TimeBoxContainer = Instance.new("Frame")
@@ -97,7 +97,7 @@ local AutoChestBtn = Instance.new("TextButton")
 AutoChestBtn.Size = UDim2.new(1, -16, 0, 32)
 AutoChestBtn.Position = UDim2.new(0, 8, 0, 111)
 AutoChestBtn.BackgroundColor3 = Color3.fromRGB(180, 50, 50)
-AutoChestBtn.Text = "AUTO NHẶT RƯƠNG: TẮT"
+AutoChestBtn.Text = "AUTO NHẶT RƯƠNG EVENT: TẮT"
 AutoChestBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
 AutoChestBtn.Font = Enum.Font.SourceSansBold
 AutoChestBtn.TextSize = 11
@@ -114,7 +114,7 @@ local UIList = Instance.new("UIListLayout")
 UIList.Parent = Scroll
 UIList.Padding = UDim.new(0, 4)
 
--- Bộ lọc cực kỳ khắt khe: Chỉ nhận diện các rương spawn tự nhiên chuẩn
+-- Logic mới: Chỉ nhận diện và nhặt rương khi tên hoặc thư mục chứa từ khóa Sea King, Ghost Ship, hoặc Hydra
 task.spawn(function()
     while true do
         task.wait(0.4)
@@ -125,48 +125,39 @@ task.spawn(function()
                 if not AutoChestRunning then break end
                 
                 local name = obj.Name:lower()
+                local parentName = obj.Parent and obj.Parent.Name:lower() or ""
                 
-                -- Chỉ kiểm tra những đối tượng có tên chứa "chest"
-                if name:find("chest") then
-                    local isExcluded = false
-                    local currentParent = obj.Parent
-                    
-                    -- Kiểm tra xem nằm trong thư mục rác, boss, minion, event hay không
-                    while currentParent and currentParent ~= Workspace do
-                        local pName = currentParent.Name:lower()
-                        if pName:find("minion") or pName:find("mob") or pName:find("enemy") or pName:find("monster") or pName:find("quest") or pName:find("gacha") or pName:find("boss") or pName:find("npc") or pName:find("skull") or pName:find("special") or pName:find("reward") or pName:find("event") or pName:find("raid") then
-                            isExcluded = true
-                            break
-                        end
-                        currentParent = currentParent.Parent
+                -- Tạo một chuỗi kiểm tra tổng hợp toàn bộ tên vật thể và thư mục chứa nó
+                local fullName = name .. " " .. parentName
+                local currentParent = obj.Parent
+                while currentParent and currentParent ~= Workspace do
+                    fullName = fullName .. " " .. currentParent.Name:lower()
+                    currentParent = currentParent.Parent
+                end
+                
+                -- Kiểm tra xem đối tượng có phải là rương VÀ thuộc về Sea King, Ghost Ship hoặc Hydra không
+                local isChest = name:find("chest") or name:find("reward") or obj:IsA("BasePart") or obj:IsA("Model")
+                local isEventTarget = fullName:find("seaking") 
+                    or fullName:find("sea king") 
+                    or fullName:find("ghost") 
+                    or fullName:find("ship") 
+                    or fullName:find("hydra") 
+                    or fullName:find("boss")
+                    or fullName:find("skull")
+                
+                -- Chỉ thực hiện khi đúng là rương sự kiện biển
+                if isChest and isEventTarget then
+                    local part = nil
+                    if obj:IsA("Model") then
+                        part = obj.PrimaryPart or obj:FindFirstChildWhichIsA("BasePart")
+                    elseif obj:IsA("BasePart") then
+                        part = obj
                     end
                     
-                    -- Loại trừ trực tiếp các từ khóa rương boss/đặc biệt trong tên
-                    if name:find("boss") or name:find("skull") or name:find("special") or name:find("reward") or name:find("raid") or name:find("sea") or name:find("hydra") then
-                        isExcluded = true
-                    end
-                    
-                    -- Lấy phần vật thể để check kích thước hoặc kiểm tra xem có phải rương mở rồi / rương đặc biệt không
-                    if not isExcluded then
-                        local part = nil
-                        if obj:IsA("Model") then
-                            part = obj.PrimaryPart or obj:FindFirstChildWhichIsA("BasePart")
-                        elseif obj:IsA("BasePart") then
-                            part = obj
-                        end
-                        
-                        if part then
-                            -- Bỏ qua các rương quá to (thường là rương boss đầu lâu) dựa trên kích thước Size
-                            if part.Size.Magnitude > 12 then
-                                isExcluded = true
-                            end
-                        end
-                        
-                        if not isExcluded and part then
-                            local pos = part.Position
-                            hrp.CFrame = CFrame.new(pos + Vector3.new(0, 3, 0))
-                            task.wait(0.25)
-                        end
+                    if part then
+                        local pos = part.Position
+                        hrp.CFrame = CFrame.new(pos + Vector3.new(0, 3, 0))
+                        task.wait(0.25)
                     end
                 end
             end
@@ -228,10 +219,10 @@ AutoChestBtn.MouseButton1Click:Connect(function()
     AutoChestRunning = not AutoChestRunning
     if AutoChestRunning then
         AutoChestBtn.BackgroundColor3 = Color3.fromRGB(0, 180, 80)
-        AutoChestBtn.Text = "AUTO NHẶT RƯƠNG: BẬT"
+        AutoChestBtn.Text = "AUTO NHẶT RƯƠNG EVENT: BẬT"
     else
         AutoChestBtn.BackgroundColor3 = Color3.fromRGB(180, 50, 50)
-        AutoChestBtn.Text = "AUTO NHẶT RƯƠNG: TẮT"
+        AutoChestBtn.Text = "AUTO NHẶT RƯƠNG EVENT: TẮT"
     end
 end)
 
