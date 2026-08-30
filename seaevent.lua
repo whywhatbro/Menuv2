@@ -1,5 +1,5 @@
 -- =================================================================
--- KING LEGACY - AUTO PLAY & AUTO EVENT CHEST (CẬP NHẬT CHUẨN KING LEGACY)
+-- KING LEGACY - AUTO PLAY & AUTO EVENT CHEST (CÓ LƯU CÀI ĐẶT)
 -- =================================================================
 
 local Players = game:GetService("Players")
@@ -10,65 +10,83 @@ local CoreGui = (gethui and gethui()) or game:GetService("CoreGui")
 local Workspace = game:GetService("Workspace")
 local VirtualInputManager = game:GetService("VirtualInputManager")
 
-getgenv().KL_AutoHopRunning = getgenv().KL_AutoHopRunning or false
-getgenv().KL_AutoChestRunning = getgenv().KL_AutoChestRunning or false
-getgenv().KL_HopDelay = getgenv().KL_HopDelay or 15
+-- ================= HỆ THỐNG LƯU CÀI ĐẶT =================
+local SettingsFile = "KingLegacy_AutoChest_Settings.json"
+
+local Settings = {
+    AutoHop = false,
+    AutoChest = false,
+    HopDelay = 15
+}
+
+local function SaveSettings()
+    pcall(function()
+        if writefile then
+            writefile(SettingsFile, HttpService:JSONEncode(Settings))
+        end
+    end)
+end
+
+local function LoadSettings()
+    pcall(function()
+        if isfile and isfile(SettingsFile) then
+            local data = readfile(SettingsFile)
+            local decoded = HttpService:JSONDecode(data)
+            if decoded then
+                Settings.AutoHop = decoded.AutoHop or false
+                Settings.AutoChest = decoded.AutoChest or false
+                Settings.HopDelay = decoded.HopDelay or 15
+            end
+        end
+    end)
+end
+
+-- Tải cài đặt từ file trước khi khởi tạo
+LoadSettings()
+
+getgenv().KL_AutoHopRunning = Settings.AutoHop
+getgenv().KL_AutoChestRunning = Settings.AutoChest
+getgenv().KL_HopDelay = Settings.HopDelay
 
 local VisitedServers = {}
 local CollectedChests = {}
 
-pcall(function()
-    if queue_on_teleport then
-        queue_on_teleport([[
-            getgenv().KL_AutoHopRunning = ]] .. tostring(getgenv().KL_AutoHopRunning) .. [[
-            getgenv().KL_AutoChestRunning = ]] .. tostring(getgenv().KL_AutoChestRunning) .. [[
-            getgenv().KL_HopDelay = ]] .. tostring(getgenv().KL_HopDelay) .. [[
-        ]])
-    end
-end)
-
-local ScreenGui = Instance.new("ScreenGui")
-ScreenGui.Name = "KL_MobileMasterGui"
-ScreenGui.Parent = CoreGui
-
--- 1. AUTO PLAY CHUYÊN BẬT DÀNH RIÊNG CHO KING LEGACY
+-- ================= 1. AUTO PLAY (SỬA LỖI CHO KING LEGACY) =================
 task.spawn(function()
     while true do
-        task.wait(0.5)
+        task.wait(1)
         pcall(function()
-            -- Khi nhân vật chưa vào trận
-            if not LocalPlayer.Character or not LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
-                local playerGui = LocalPlayer:FindFirstChild("PlayerGui")
-                if playerGui then
-                    for _, gui in pairs(playerGui:GetDescendants()) do
-                        if (gui:IsA("TextButton") or gui:IsA("ImageButton")) and gui.Visible then
-                            local text = gui:IsA("TextButton") and gui.Text:lower() or ""
-                            local name = gui.Name:lower()
+            -- Bỏ điều kiện kiểm tra Character vì KL sinh nhân vật sẵn ở sảnh
+            local playerGui = LocalPlayer:FindFirstChild("PlayerGui")
+            if playerGui then
+                for _, gui in pairs(playerGui:GetDescendants()) do
+                    if (gui:IsA("TextButton") or gui:IsA("ImageButton")) and gui.Visible then
+                        local text = gui:IsA("TextButton") and gui.Text:lower() or ""
+                        local name = gui.Name:lower()
+                        
+                        -- Chỉ tìm chính xác chữ "play" hoặc "start"
+                        if text == "play" or name == "play" or text == "start" or name == "start" then
                             
-                            -- Quét các từ khóa màn hình chờ của King Legacy (Play, Start, Enter...)
-                            if text:find("play") or text:find("start") or text:find("enter") or name:find("play") or name:find("start") or name:find("enter") then
-                                
-                                -- Kích hoạt trực tiếp Event của nút
-                                if getconnections then
-                                    for _, conn in pairs(getconnections(gui.MouseButton1Click)) do pcall(function() conn:Fire() end) end
-                                    for _, conn in pairs(getconnections(gui.TouchTap)) do pcall(function() conn:Fire() end) end
-                                    for _, conn in pairs(getconnections(gui.Activated)) do pcall(function() conn:Fire() end) end
-                                end
-                                
-                                pcall(function() gui:Activate() end)
-                                
-                                -- Giả lập chạm màn hình tọa độ nút (dành cho Mobile Executor)
-                                if gui.AbsolutePosition.X > 0 and gui.AbsolutePosition.Y > 0 then
-                                    local cx = gui.AbsolutePosition.X + (gui.AbsoluteSize.X / 2)
-                                    local cy = gui.AbsolutePosition.Y + (gui.AbsoluteSize.Y / 2)
-                                    pcall(function()
-                                        if VirtualInputManager and VirtualInputManager.SendTouchEvent then
-                                            VirtualInputManager:SendTouchEvent(0, 0, 0, cx, cy, game)
-                                            task.wait(0.05)
-                                            VirtualInputManager:SendTouchEvent(0, 1, 0, cx, cy, game)
-                                        end
-                                    end)
-                                end
+                            -- Kích hoạt trực tiếp Event của nút
+                            if getconnections then
+                                for _, conn in pairs(getconnections(gui.MouseButton1Click)) do pcall(function() conn:Fire() end) end
+                                for _, conn in pairs(getconnections(gui.TouchTap)) do pcall(function() conn:Fire() end) end
+                                for _, conn in pairs(getconnections(gui.Activated)) do pcall(function() conn:Fire() end) end
+                            end
+                            
+                            pcall(function() gui:Activate() end)
+                            
+                            -- Giả lập chạm màn hình tọa độ nút
+                            if gui.AbsolutePosition.X > 0 and gui.AbsolutePosition.Y > 0 then
+                                local cx = gui.AbsolutePosition.X + (gui.AbsoluteSize.X / 2)
+                                local cy = gui.AbsolutePosition.Y + (gui.AbsoluteSize.Y / 2)
+                                pcall(function()
+                                    if VirtualInputManager and VirtualInputManager.SendTouchEvent then
+                                        VirtualInputManager:SendTouchEvent(0, 0, 0, cx, cy, game)
+                                        task.wait(0.1)
+                                        VirtualInputManager:SendTouchEvent(0, 1, 0, cx, cy, game)
+                                    end
+                                end)
                             end
                         end
                     end
@@ -78,7 +96,11 @@ task.spawn(function()
     end
 end)
 
--- GIAO DIỆN MENU
+-- ================= GIAO DIỆN MENU =================
+local ScreenGui = Instance.new("ScreenGui")
+ScreenGui.Name = "KL_MobileMasterGui_Save"
+ScreenGui.Parent = CoreGui
+
 local ToggleBtn = Instance.new("TextButton")
 ToggleBtn.Size = UDim2.new(0, 45, 0, 45)
 ToggleBtn.Position = UDim2.new(0, 15, 0.3, 0)
@@ -104,7 +126,7 @@ end)
 local Title = Instance.new("TextLabel")
 Title.Size = UDim2.new(1, 0, 0, 30)
 Title.BackgroundColor3 = Color3.fromRGB(30, 30, 42)
-Title.Text = "AUTO RƯƠNG EVENT & AUTO PLAY (KING LEGACY)"
+Title.Text = "AUTO EVENT KING LEGACY (LƯU CÀI ĐẶT)"
 Title.TextColor3 = Color3.fromRGB(0, 255, 180)
 Title.Font = Enum.Font.SourceSansBold
 Title.TextSize = 10
@@ -114,7 +136,7 @@ local StatusLabel = Instance.new("TextLabel")
 StatusLabel.Size = UDim2.new(1, -16, 0, 25)
 StatusLabel.Position = UDim2.new(0, 8, 0, 38)
 StatusLabel.BackgroundTransparency = 1
-StatusLabel.Text = "Trạng thái: Đang hoạt động..."
+StatusLabel.Text = "Trạng thái: Đã tải cài đặt đã lưu!"
 StatusLabel.TextColor3 = Color3.fromRGB(255, 255, 100)
 StatusLabel.Font = Enum.Font.SourceSans
 StatusLabel.TextSize = 11
@@ -150,6 +172,8 @@ TimeTextBox.FocusLost:Connect(function()
     local val = tonumber(TimeTextBox.Text)
     if val and val >= 3 then
         getgenv().KL_HopDelay = val
+        Settings.HopDelay = val
+        SaveSettings() -- Lưu ngay khi thay đổi
     end
     TimeTextBox.Text = tostring(getgenv().KL_HopDelay)
 end)
@@ -168,21 +192,25 @@ AutoChestBtn.Parent = MainFrame
 AutoChestBtn.Font = Enum.Font.SourceSansBold
 AutoChestBtn.TextSize = 11
 
-if getgenv().KL_AutoHopRunning then
-    AutoHopBtn.BackgroundColor3 = Color3.fromRGB(0, 180, 80)
-    AutoHopBtn.Text = "AUTO HOP 11-12 NGƯỜI: BẬT"
-else
-    AutoHopBtn.BackgroundColor3 = Color3.fromRGB(180, 50, 50)
-    AutoHopBtn.Text = "AUTO HOP 11-12 NGƯỜI: TẮT"
-end
+-- Cập nhật màu nút theo cài đặt đã load
+local function UpdateButtons()
+    if getgenv().KL_AutoHopRunning then
+        AutoHopBtn.BackgroundColor3 = Color3.fromRGB(0, 180, 80)
+        AutoHopBtn.Text = "AUTO HOP 11-12 NGƯỜI: BẬT"
+    else
+        AutoHopBtn.BackgroundColor3 = Color3.fromRGB(180, 50, 50)
+        AutoHopBtn.Text = "AUTO HOP 11-12 NGƯỜI: TẮT"
+    end
 
-if getgenv().KL_AutoChestRunning then
-    AutoChestBtn.BackgroundColor3 = Color3.fromRGB(0, 180, 80)
-    AutoChestBtn.Text = "AUTO NHẶT RƯƠNG EVENT: BẬT"
-else
-    AutoChestBtn.BackgroundColor3 = Color3.fromRGB(180, 50, 50)
-    AutoChestBtn.Text = "AUTO NHẶT RƯƠNG EVENT: TẮT"
+    if getgenv().KL_AutoChestRunning then
+        AutoChestBtn.BackgroundColor3 = Color3.fromRGB(0, 180, 80)
+        AutoChestBtn.Text = "AUTO NHẶT RƯƠNG EVENT: BẬT"
+    else
+        AutoChestBtn.BackgroundColor3 = Color3.fromRGB(180, 50, 50)
+        AutoChestBtn.Text = "AUTO NHẶT RƯƠNG EVENT: TẮT"
+    end
 end
+UpdateButtons()
 
 local Scroll = Instance.new("ScrollingFrame")
 Scroll.Size = UDim2.new(1, -16, 1, -220)
@@ -195,7 +223,7 @@ local UIList = Instance.new("UIListLayout")
 UIList.Parent = Scroll
 UIList.Padding = UDim.new(0, 4)
 
--- 2. AUTO NHẶT RƯƠNG EVENT (Bộ lọc chuẩn King Legacy)
+-- ================= 2. AUTO NHẶT RƯƠNG EVENT =================
 task.spawn(function()
     while true do
         task.wait(0.2)
@@ -267,6 +295,7 @@ task.spawn(function()
     end
 end)
 
+-- ================= 3. HỆ THỐNG AUTO HOP =================
 local function FetchAndHopNext()
     local success, result = pcall(function()
         local url = "https://games.roblox.com/v1/games/" .. game.PlaceId .. "/servers/Public?sortOrder=2&limit=100"
@@ -311,24 +340,19 @@ end)
 
 AutoHopBtn.MouseButton1Click:Connect(function()
     getgenv().KL_AutoHopRunning = not getgenv().KL_AutoHopRunning
-    if getgenv().KL_AutoHopRunning then
-        AutoHopBtn.BackgroundColor3 = Color3.fromRGB(0, 180, 80)
-        AutoHopBtn.Text = "AUTO HOP 11-12 NGƯỜI: BẬT"
-    else
-        AutoHopBtn.BackgroundColor3 = Color3.fromRGB(180, 50, 50)
-        AutoHopBtn.Text = "AUTO HOP 11-12 NGƯỜI: TẮT"
-    end
+    Settings.AutoHop = getgenv().KL_AutoHopRunning
+    SaveSettings() -- Lưu cài đặt
+    UpdateButtons()
 end)
 
 AutoChestBtn.MouseButton1Click:Connect(function()
     getgenv().KL_AutoChestRunning = not getgenv().KL_AutoChestRunning
+    Settings.AutoChest = getgenv().KL_AutoChestRunning
+    SaveSettings() -- Lưu cài đặt
+    UpdateButtons()
     if getgenv().KL_AutoChestRunning then
-        AutoChestBtn.BackgroundColor3 = Color3.fromRGB(0, 180, 80)
-        AutoChestBtn.Text = "AUTO NHẶT RƯƠNG EVENT: BẬT"
         StatusLabel.Text = "Trạng thái: Đang quét rương event..."
     else
-        AutoChestBtn.BackgroundColor3 = Color3.fromRGB(180, 50, 50)
-        AutoChestBtn.Text = "AUTO NHẶT RƯƠNG EVENT: TẮT"
         StatusLabel.Text = "Trạng thái: Đã tắt."
     end
 end)
@@ -353,20 +377,9 @@ local function ScanAndDisplay()
 
         Loading:Destroy()
 
-        if not success or not result or not result.data then
-            local Err = Instance.new("TextLabel")
-            Err.Size = UDim2.new(1, 0, 1, 0)
-            Err.BackgroundTransparency = 1
-            Err.Text = "⚠️ Lỗi tải dữ liệu server!"
-            Err.TextColor3 = Color3.fromRGB(255, 100, 100)
-            Err.Font = Enum.Font.SourceSansBold
-            Err.TextSize = 11
-            Err.Parent = Scroll
-            return
-        end
+        if not success or not result or not result.data then return end
 
         local count = 0
-
         for _, svr in pairs(result.data) do
             if svr.id ~= game.JobId and not VisitedServers[svr.id] and svr.playing >= 11 and svr.playing <= 12 then
                 count = count + 1
