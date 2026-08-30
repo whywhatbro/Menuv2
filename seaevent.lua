@@ -1,11 +1,11 @@
 -- =================================================================
--- KING LEGACY - AUTO TOGGLE BROWSER JOIN FIX (ĐÃ SỬA LỖI JOIN)
+-- KING LEGACY - AUTO TOGGLE BROWSER JOIN FIX (HOÀN CHỈNH)
 -- =================================================================
 
 local Players = game:GetService("Players")
 local LocalPlayer = Players.LocalPlayer
 local PlayerGui = LocalPlayer:WaitForChild("PlayerGui")
-local VirtualInputManager = game:GetService("VirtualInputManager")
+local TeleportService = game:GetService("TeleportService")
 
 local BossCycles = {
     ["Sea King"] = 3600,
@@ -156,33 +156,32 @@ local function ScanAndFix()
 
                     JoinBtn.MouseButton1Click:Connect(function()
                         JoinBtn.Text = "Đang vào..."
-                        if parentFrame then
-                            for _, child in pairs(parentFrame:GetChildren()) do
-                                if child:IsA("TextButton") and (child.Text == "Join" or child.Text:lower() == "join") then
-                                    -- Thử kích hoạt bằng firesignal hoặc getconnections nếu hỗ trợ
-                                    local success = pcall(function()
-                                        if firesignal then
-                                            firesignal(child.MouseButton1Click)
-                                        else
-                                            for _, conn in pairs(getconnections(child.MouseButton1Click)) do
-                                                conn:Fire()
-                                            end
-                                        end
-                                    end)
-                                    
-                                    -- Nếu executor không hỗ trợ, dùng VirtualInputManager để click trực tiếp vào tọa độ nút Join
-                                    if not success then
-                                        task.spawn(function()
-                                            local absPos = child.AbsolutePosition
-                                            local absSize = child.AbsoluteSize
-                                            VirtualInputManager:SendMouseButtonEvent(absPos.X + absSize.X/2, absPos.Y + absSize.Y/2, 0, true, game, 1)
-                                            task.wait(0.05)
-                                            VirtualInputManager:SendMouseButtonEvent(absPos.X + absSize.X/2, absPos.Y + absSize.Y/2, 0, false, game, 1)
-                                        end)
-                                    end
+                        
+                        local success = pcall(function()
+                            local foundJobId = nil
+                            for _, v in pairs(parentFrame:GetDescendants()) do
+                                if v:IsA("ObjectValue") then
+                                    foundJobId = v.Value
                                     break
                                 end
                             end
+                            
+                            if foundJobId then
+                                TeleportService:TeleportToPlaceInstance(game.PlaceId, foundJobId, LocalPlayer)
+                            else
+                                for _, child in pairs(parentFrame:GetChildren()) do
+                                    if child:IsA("TextButton") and child.Text == "Join" then
+                                        local conns = getconnections and getconnections(child.MouseButton1Click)
+                                        if conns then
+                                            for _, conn in pairs(conns) do conn:Fire() end
+                                        end
+                                    end
+                                end
+                            end
+                        end)
+                        
+                        if not success then
+                            JoinBtn.Text = "Lỗi Join!"
                         end
                     end)
                 end
