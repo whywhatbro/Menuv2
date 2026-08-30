@@ -1,4 +1,7 @@
--- KING LEGACY: FIXED NPC TARGETING ISSUE
+-- =================================================================
+-- KING LEGACY: FULL AUTO FARM (FIXED ANGLE + FIX NPC + COMPACT UI)
+-- =================================================================
+
 local Players = game:GetService("Players")
 local TeleportService = game:GetService("TeleportService")
 local HttpService = game:GetService("HttpService")
@@ -8,63 +11,167 @@ local VirtualUser = game:GetService("VirtualUser")
 local VirtualInputManager = game:GetService("VirtualInputManager")
 
 local LocalPlayer = Players.LocalPlayer
-local CONFIG_FILE = "KL_FixNPC_Config.json"
 
+-- CẤU HÌNH MẶC ĐỊNH
 local Config = {
     Enabled = true,
-    AutoAttack = true,
     FarmNearest = true,
-    AutoChest = true,
-    AttackDistance = 9,
+    AttackDistance = 7, -- Tầm đánh 7m (Chuẩn M1 & Skill)
     MaxMobDistance = 1000,
-    MainWeapon = "Melee",
+    MainWeapon = "Melee", -- Vũ khí chính: "Melee", "Sword", hoặc "Blox Fruit"
     SubWeapons = { ["Melee"] = false, ["Sword"] = true, ["Blox Fruit"] = true },
-    UseSkills = { Z = true, X = true, C = true, V = true, E = true },
-    SelectedEvents = {
-        ["Sea King"]       = true,
-        ["Ghost Ship"]     = true,
-        ["Hydra"]          = true,
-        ["Kraken"]         = false,
-        ["Drakenfyr"]      = false,
-        ["Abyssal Tyrant"] = false,
-        ["Crab"]           = false
-    }
+    UseSkills = { Z = true, X = true, C = true, V = true, E = true }
 }
 
 local isAttacking = false
 
--- Anti-AFK
+-- ANTI-AFK (CHỐNG VĂN GAME KHI TREO)
 LocalPlayer.Idled:Connect(function()
     VirtualUser:Button2Down(Vector2.new(0,0), workspace.CurrentCamera.CFrame)
     task.wait(1)
     VirtualUser:Button2Up(Vector2.new(0,0), workspace.CurrentCamera.CFrame)
 end)
 
--- GUI SETUP
+-- =================================================================
+-- 1. KÍCH THƯỚC VÀ GIAO DIỆN GUI
+-- =================================================================
 local ScreenGui = Instance.new("ScreenGui")
-ScreenGui.Name = "KL_FixNPC_Gui"
+ScreenGui.Name = "KL_FullFix_Gui"
 ScreenGui.Parent = (gethui and gethui()) or CoreGui or LocalPlayer:WaitForChild("PlayerGui")
 
+-- NÚT MỞ MENU KHI ĐÃ THU NHỎ
+local OpenBtn = Instance.new("TextButton")
+OpenBtn.Size = UDim2.new(0, 90, 0, 30)
+OpenBtn.Position = UDim2.new(0.02, 0, 0.2, 0)
+OpenBtn.BackgroundColor3 = Color3.fromRGB(0, 255, 150)
+OpenBtn.Text = "⚡ OPEN MENU"
+OpenBtn.TextColor3 = Color3.fromRGB(15, 15, 20)
+OpenBtn.Font = Enum.Font.SourceSansBold
+OpenBtn.TextSize = 12
+OpenBtn.Visible = false
+OpenBtn.Parent = ScreenGui
+
+-- KHUNG MENU CHÍNH
 local MainFrame = Instance.new("Frame")
-MainFrame.Size = UDim2.new(0, 320, 0, 480)
-MainFrame.Position = UDim2.new(0.5, -160, 0.05, 0)
+MainFrame.Size = UDim2.new(0, 280, 0, 350)
+MainFrame.Position = UDim2.new(0.5, -140, 0.15, 0)
 MainFrame.BackgroundColor3 = Color3.fromRGB(18, 18, 24)
+MainFrame.BorderSizePixel = 1
+MainFrame.BorderColor3 = Color3.fromRGB(0, 255, 150)
 MainFrame.Active = true
-MainFrame.Draggable = true
+MainFrame.Draggable = false -- Không kéo toàn bộ frame để tránh vuốt nhầm
 MainFrame.Parent = ScreenGui
 
+-- THANH TIÊU ĐỀ (CHỈ KÉO Ở ĐÂY)
+local TitleBar = Instance.new("Frame")
+TitleBar.Size = UDim2.new(1, 0, 0, 30)
+TitleBar.BackgroundColor3 = Color3.fromRGB(30, 30, 42)
+TitleBar.Active = true
+TitleBar.Draggable = true -- CHỈ THANH NÀY MỚI KÉO ĐƯỢC
+TitleBar.Parent = MainFrame
+
+TitleBar.Changed:Connect(function(prop)
+    if prop == "Position" then
+        MainFrame.Position = TitleBar.Position
+    end
+end)
+
+local TitleText = Instance.new("TextLabel")
+TitleText.Size = UDim2.new(0.8, 0, 1, 0)
+TitleText.Position = UDim2.new(0.03, 0, 0, 0)
+TitleText.BackgroundTransparency = 1
+TitleText.Text = "KING LEGACY AUTO FARM"
+TitleText.TextColor3 = Color3.fromRGB(0, 255, 150)
+TitleText.Font = Enum.Font.SourceSansBold
+TitleText.TextSize = 12
+TitleText.TextXAlignment = Enum.TextXAlignment.Left
+TitleText.Parent = TitleBar
+
+-- NÚT THU NHỎ / ẨN MENU
+local MinimizeBtn = Instance.new("TextButton")
+MinimizeBtn.Size = UDim2.new(0, 30, 0, 24)
+MinimizeBtn.Position = UDim2.new(1, -33, 0, 3)
+MinimizeBtn.BackgroundColor3 = Color3.fromRGB(255, 60, 60)
+MinimizeBtn.Text = "−"
+MinimizeBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+MinimizeBtn.Font = Enum.Font.SourceSansBold
+MinimizeBtn.TextSize = 16
+MinimizeBtn.Parent = TitleBar
+
+MinimizeBtn.MouseButton1Click:Connect(function()
+    MainFrame.Visible = false
+    OpenBtn.Visible = true
+end)
+
+OpenBtn.MouseButton1Click:Connect(function()
+    MainFrame.Visible = true
+    OpenBtn.Visible = false
+end)
+
+-- BẢNG TRẠNG THÁI
 local StatusLabel = Instance.new("TextLabel")
-StatusLabel.Size = UDim2.new(1, -20, 0, 45)
-StatusLabel.Position = UDim2.new(0, 10, 0, 10)
+StatusLabel.Size = UDim2.new(1, -16, 0, 35)
+StatusLabel.Position = UDim2.new(0, 8, 0, 35)
 StatusLabel.BackgroundColor3 = Color3.fromRGB(25, 25, 32)
 StatusLabel.TextColor3 = Color3.fromRGB(0, 255, 150)
-StatusLabel.Text = "⚡ Đã cập nhật lọc NPC an toàn..."
+StatusLabel.Text = "⚡ Đã sẵn sàng Farm Quái!"
 StatusLabel.TextWrapped = true
 StatusLabel.Font = Enum.Font.SourceSansBold
-StatusLabel.TextSize = 12
+StatusLabel.TextSize = 11
 StatusLabel.Parent = MainFrame
 
--- HÀM TRANG BỊ VŨ KHÍ
+-- DANH SÁCH NÚT BẤM CẤU HÌNH
+local Scroll = Instance.new("ScrollingFrame")
+Scroll.Size = UDim2.new(1, -16, 0, 260)
+Scroll.Position = UDim2.new(0, 8, 0, 75)
+Scroll.BackgroundColor3 = Color3.fromRGB(25, 25, 32)
+Scroll.BorderSizePixel = 0
+Scroll.CanvasSize = UDim2.new(0, 0, 0, 250)
+Scroll.Parent = MainFrame
+
+local UIList = Instance.new("UIListLayout")
+UIList.Parent = Scroll
+UIList.Padding = UDim.new(0, 5)
+
+local function CreateButton(text, bg, callback)
+    local btn = Instance.new("TextButton")
+    btn.Size = UDim2.new(1, -8, 0, 30)
+    btn.BackgroundColor3 = bg
+    btn.Text = text
+    btn.TextColor3 = Color3.fromRGB(255, 255, 255)
+    btn.Font = Enum.Font.SourceSansBold
+    btn.TextSize = 11
+    btn.Parent = Scroll
+    btn.MouseButton1Click:Connect(function() callback(btn) end)
+    return btn
+end
+
+-- NÚT BẬT/TẮT FARM QUÁI
+CreateButton("AUTO FARM: " .. (Config.FarmNearest and "BẬT" or "TẮT"), Config.FarmNearest and Color3.fromRGB(0, 180, 180) or Color3.fromRGB(60, 60, 70), function(btn)
+    Config.FarmNearest = not Config.FarmNearest
+    btn.Text = "AUTO FARM: " .. (Config.FarmNearest and "BẬT" or "TẮT")
+    btn.BackgroundColor3 = Config.FarmNearest and Color3.fromRGB(0, 180, 180) or Color3.fromRGB(60, 60, 70)
+end)
+
+-- NÚT CHỌN VŨ KHÍ CHÍNH
+CreateButton("VŨ KHÍ CHÍNH: " .. Config.MainWeapon, Color3.fromRGB(0, 130, 200), function(btn)
+    if Config.MainWeapon == "Melee" then Config.MainWeapon = "Sword"
+    elseif Config.MainWeapon == "Sword" then Config.MainWeapon = "Blox Fruit"
+    else Config.MainWeapon = "Melee" end
+    btn.Text = "VŨ KHÍ CHÍNH: " .. Config.MainWeapon
+end)
+
+-- NÚT CHỈNH KHOẢNG CÁCH
+CreateButton("KHOẢNG CÁCH ĐÁNH: " .. Config.AttackDistance .. "M", Color3.fromRGB(120, 80, 200), function(btn)
+    if Config.AttackDistance == 7 then Config.AttackDistance = 5
+    elseif Config.AttackDistance == 5 then Config.AttackDistance = 9
+    else Config.AttackDistance = 7 end
+    btn.Text = "KHOẢNG CÁCH ĐÁNH: " .. Config.AttackDistance .. "M"
+end)
+
+-- =================================================================
+-- 2. LOGIC TRANG BỊ VŨ KHÍ VÀ LỌC NPC
+-- =================================================================
 local function EquipWeaponByType(weaponType)
     local char = LocalPlayer.Character
     local backpack = LocalPlayer:FindFirstChild("Backpack")
@@ -90,34 +197,30 @@ local function EquipWeaponByType(weaponType)
     return false
 end
 
--- BỘ LỌC KIỂM TRA XEM MỤC TIÊU CÓ PHẢI LÀ NPC CHAT/BÁN ĐỒ KHÔNG
+-- BỘ LỌC CHUẨN: LOẠI BỎ TOÀN BỘ NPC NHẬN QUEST / SHOP / HỘI THOẠI
 local function IsEnemyMob(obj)
     if not obj:IsA("Model") then return false end
-    
     local hum = obj:FindFirstChildOfClass("Humanoid")
-    if not hum or hum.Health <= 0 then return false end
-
+    if not hum or hum.Health <= 0 or hum.MaxHealth <= 0 then return false end
+    
     -- Bỏ qua Người chơi
     if Players:GetPlayerFromCharacter(obj) then return false end
 
-    -- Bỏ qua NPC có hội thoại / nhiệm vụ / bán đồ
+    -- Bỏ qua NPC giao tiếp / nhận Quest
     if obj:FindFirstChildWhichIsA("ProximityPrompt", true) then return false end
     if obj:FindFirstChild("Dialog") or obj:FindFirstChild("Quest") or obj:FindFirstChild("NPC") then return false end
     if obj:FindFirstChild("Talk") or obj:FindFirstChild("Shop") then return false end
-    
-    -- Tên các NPC quen thuộc cần bỏ qua
-    local name = obj.Name:lower()
-    if name:find("quest") or name:find("dealer") or name:find("seller") or name:find("spawn") or name:find("spin") then
-        return false
-    end
 
-    -- Đảm bảo có thanh máu thực sự (MaxHealth > 0)
-    if hum.MaxHealth <= 0 then return false end
+    -- Tên các NPC cần tránh
+    local name = obj.Name:lower()
+    if name:find("quest") or name:find("dealer") or name:find("seller") or name:find("spawn") or name:find("spin") then 
+        return false 
+    end
 
     return true
 end
 
--- TÌM QUÁI GẦN NHẤT CHUẨN XÁC
+-- TÌM QUÁI GẦN NHẤT
 local function FindNearestMob()
     local char = LocalPlayer.Character
     if not char or not char:FindFirstChild("HumanoidRootPart") then return nil end
@@ -125,8 +228,6 @@ local function FindNearestMob()
 
     local closestMob = nil
     local minDistance = Config.MaxMobDistance
-
-    -- Ưu tiên tìm trong thư mục Quái của King Legacy
     local searchFolder = Workspace:FindFirstChild("Monster") or Workspace:FindFirstChild("Enemies") or Workspace
 
     for _, obj in pairs(searchFolder:GetDescendants()) do
@@ -144,10 +245,12 @@ local function FindNearestMob()
     return closestMob
 end
 
--- TẤN CÔNG MỤC TIÊU
+-- =================================================================
+-- 3. HÀM TẤN CÔNG ĐÃ SỬA GÓC NHÌN & TƯ THẾ ĐỨNG CHUẨN
+-- =================================================================
 local function AttackTarget(targetObj)
     isAttacking = true
-    StatusLabel.Text = "⚔️ ĐANG TẤN CÔNG QUÁI: " .. targetObj.Name
+    StatusLabel.Text = "⚔️ ĐANG TẤN CÔNG: " .. targetObj.Name
     StatusLabel.TextColor3 = Color3.fromRGB(255, 170, 0)
 
     task.spawn(function()
@@ -160,10 +263,14 @@ local function AttackTarget(targetObj)
                 local targetPart = targetObj:FindFirstChild("HumanoidRootPart") or targetObj.PrimaryPart or targetObj:FindFirstChildWhichIsA("BasePart")
                 
                 if targetPart then
-                    -- Bay lơ lửng trên đầu quái
-                    char.HumanoidRootPart.CFrame = targetPart.CFrame * CFrame.new(0, Config.AttackDistance, 0) * CFrame.Angles(math.rad(-90), 0, 0)
+                    -- 1. Tính toán vị trí đứng ở TRÊN ĐẦU quái
+                    local mobPosition = targetPart.Position
+                    local standPosition = mobPosition + Vector3.new(0, Config.AttackDistance, 0)
 
-                    -- 1. Đổi sang vũ khí phụ xả Skill
+                    -- 2. ĐỨNG THẲNG VÀ CÚI MẶT NHÌN THẲNG XUỐNG QUÁI (Không nằm ngang)
+                    char.HumanoidRootPart.CFrame = CFrame.lookAt(standPosition, mobPosition)
+
+                    -- 3. Đổi sang vũ khí phụ xả Skill (nếu bật)
                     for _, wpType in ipairs({"Melee", "Sword", "Blox Fruit"}) do
                         if wpType ~= Config.MainWeapon and Config.SubWeapons[wpType] then
                             if EquipWeaponByType(wpType) then
@@ -178,19 +285,21 @@ local function AttackTarget(targetObj)
                         end
                     end
 
-                    -- 2. Đổi về Vũ khí chính đánh M1
+                    -- 4. Trang bị Vũ Khí Chính và Chém M1 liên tục
                     EquipWeaponByType(Config.MainWeapon)
                     VirtualUser:Button1Down(Vector2.new(0, 0), workspace.CurrentCamera.CFrame)
-                    VirtualUser:ClickButton1(Vector2.new(0,0))
+                    VirtualUser:ClickButton1(Vector2.new(0, 0))
                 end
             end
-            task.wait(0.08)
+            task.wait(0.05)
         end
         isAttacking = false
     end)
 end
 
--- VÒNG LẶP CHÍNH
+-- =================================================================
+-- 4. VÒNG LẶP CHÍNH (MAIN LOOP)
+-- =================================================================
 task.spawn(function()
     while true do
         if not isAttacking and Config.FarmNearest then
@@ -198,10 +307,10 @@ task.spawn(function()
             if mobObj then
                 AttackTarget(mobObj)
             else
-                StatusLabel.Text = "🔍 Đang quét quái thực sự (Đã lọc NPC)..."
+                StatusLabel.Text = "🔍 Đang tìm quái gần nhất..."
                 StatusLabel.TextColor3 = Color3.fromRGB(0, 255, 150)
             end
         end
-        task.wait(1)
+        task.wait(0.8)
     end
 end)
