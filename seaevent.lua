@@ -1,5 +1,5 @@
 -- =================================================================
--- KING LEGACY - AUTO PLAY & AUTO EVENT CHEST (FIX NHẶT RƯƠNG MỌI SERVER)
+-- KING LEGACY - AUTO PLAY & AUTO EVENT CHEST (FIX LỖI TELEPORT BOSS)
 -- =================================================================
 
 local Players = game:GetService("Players")
@@ -17,7 +17,7 @@ getgenv().KL_AutoChestRunning = getgenv().KL_AutoChestRunning or false
 getgenv().KL_HopDelay = getgenv().KL_HopDelay or 15
 
 local VisitedServers = {}
-local CollectedChests = {} -- Lưu các rương đã nhặt để không bị kẹt lặp lại
+local CollectedChests = {}
 
 -- Giữ trạng thái khi đổi server
 pcall(function()
@@ -34,42 +34,38 @@ local ScreenGui = Instance.new("ScreenGui")
 ScreenGui.Name = "KL_MobileMasterGui"
 ScreenGui.Parent = CoreGui
 
--- 1. AUTO PLAY: Tự động nhấn/chạm nút Play khi vào game
+-- 1. AUTO PLAY: Tự động bấm nút Play khi vào game
 task.spawn(function()
     while true do
-        task.wait(0.3)
+        task.wait(0.5)
         pcall(function()
             if not LocalPlayer.Character or not LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
                 local playerGui = LocalPlayer:FindFirstChild("PlayerGui")
-                local containers = {CoreGui, playerGui}
-                
-                for _, container in pairs(containers) do
-                    if container then
-                        for _, gui in pairs(container:GetDescendants()) do
-                            if gui:IsA("TextButton") or gui:IsA("ImageButton") then
-                                local text = gui:IsA("TextButton") and gui.Text:lower() or ""
-                                local name = gui.Name:lower()
-                                
-                                if text:find("play") or text:find("start") or text:find("chơi") or name:find("play") then
-                                    if gui.Visible and gui.AbsoluteSize.X > 0 then
-                                        local pos = gui.AbsolutePosition
-                                        local size = gui.AbsoluteSize
-                                        local cx = pos.X + size.X / 2
-                                        local cy = pos.Y + size.Y / 2
-                                        
-                                        pcall(function()
-                                            if VirtualInputManager and VirtualInputManager.SendTouchEvent then
-                                                VirtualInputManager:SendTouchEvent(0, 0, 0, cx, cy, game)
-                                                task.wait(0.05)
-                                                VirtualInputManager:SendTouchEvent(0, 1, 0, cx, cy, game)
-                                            elseif VirtualUser then
-                                                VirtualUser:Button1Down(Vector2.new(cx, cy))
-                                                task.wait(0.05)
-                                                VirtualUser:Button1Up(Vector2.new(cx, cy))
-                                            end
-                                            gui:Activate()
-                                        end)
-                                    end
+                if playerGui then
+                    for _, gui in pairs(playerGui:GetDescendants()) do
+                        if gui:IsA("TextButton") or gui:IsA("ImageButton") then
+                            local text = gui:IsA("TextButton") and gui.Text:lower() or ""
+                            local name = gui.Name:lower()
+                            
+                            if text:find("play") or text:find("start") or text:find("chơi") or name:find("play") or name:find("start") then
+                                if gui.Visible and gui.AbsoluteSize.X > 0 then
+                                    local pos = gui.AbsolutePosition
+                                    local size = gui.AbsoluteSize
+                                    local cx = pos.X + size.X / 2
+                                    local cy = pos.Y + size.Y / 2
+                                    
+                                    pcall(function()
+                                        if VirtualInputManager and VirtualInputManager.SendTouchEvent then
+                                            VirtualInputManager:SendTouchEvent(0, 0, 0, cx, cy, game)
+                                            task.wait(0.05)
+                                            VirtualInputManager:SendTouchEvent(0, 1, 0, cx, cy, game)
+                                        elseif VirtualUser then
+                                            VirtualUser:Button1Down(Vector2.new(cx, cy))
+                                            task.wait(0.05)
+                                            VirtualUser:Button1Up(Vector2.new(cx, cy))
+                                        end
+                                        gui:Activate()
+                                    end)
                                 end
                             end
                         end
@@ -197,7 +193,7 @@ local UIList = Instance.new("UIListLayout")
 UIList.Parent = Scroll
 UIList.Padding = UDim.new(0, 4)
 
--- 2. AUTO NHẶT RƯƠNG: Nhặt tất cả rương hiện có trong server ngay lập tức
+-- 2. AUTO NHẶT RƯƠNG: Lọc bỏ boss/quái vật để chỉ nhặt rương chính xác
 task.spawn(function()
     while true do
         task.wait(0.2)
@@ -208,10 +204,25 @@ task.spawn(function()
                 if not getgenv().KL_AutoChestRunning then break end
                 
                 local name = obj.Name:lower()
-                -- Nhận diện mọi loại rương/phần thưởng event xuất hiện trong map
-                if (name:find("chest") or name:find("reward") or name:find("box")) and not CollectedChests[obj] then
+                
+                -- Kiểm tra nếu đối tượng hoặc cây thư mục chứa Humanoid thì bỏ qua ngay (Tránh nhầm boss/quái)
+                local isBossOrMob = false
+                if obj:IsA("Model") and obj:FindFirstChildOfClass("Humanoid") then
+                    isBossOrMob = true
+                end
+                
+                local current = obj.Parent
+                while current and current ~= Workspace do
+                    if current:IsA("Model") and current:FindFirstChildOfClass("Humanoid") then
+                        isBossOrMob = true
+                        break
+                    end
+                    current = current.Parent
+                end
+                
+                if not isBossOrMob and (name:find("chest") or name:find("reward") or name:find("box")) and not CollectedChests[obj] then
                     local isIgnored = false
-                    local current = obj.Parent
+                    current = obj.Parent
                     
                     while current and current ~= Workspace do
                         local cName = current.Name:lower()
@@ -232,7 +243,7 @@ task.spawn(function()
                         
                         if part then
                             CollectedChests[obj] = true
-                            StatusLabel.Text = "Trạng thái: Đang nhặt rương ở server mới!"
+                            StatusLabel.Text = "Trạng thái: Đang nhặt rương thực tế..."
                             StatusLabel.TextColor3 = Color3.fromRGB(0, 255, 100)
                             
                             hrp.CFrame = CFrame.new(part.Position + Vector3.new(0, 2, 0))
