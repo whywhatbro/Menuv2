@@ -1,12 +1,11 @@
 -- =================================================================
--- KING LEGACY - AUTO HOP BOSS CHUẨN API (KHÔNG LỆ THUỘC UI GAME)
+-- KING LEGACY - AUTO HOP BOSS CHUẨN GIAO DIỆN & THỜI GIAN
 -- =================================================================
 
 local Players = game:GetService("Players")
 local LocalPlayer = Players.LocalPlayer
+local PlayerGui = LocalPlayer:WaitForChild("PlayerGui")
 local TeleportService = game:GetService("TeleportService")
-local HttpService = game:GetService("HttpService")
-local CoreGui = (gethui and gethui()) or game:GetService("CoreGui")
 
 local BossCycles = {
     ["Sea King"] = 3600,
@@ -17,8 +16,8 @@ local BossCycles = {
 local SelectedBoss = "Sea King"
 
 local ScreenGui = Instance.new("ScreenGui")
-ScreenGui.Name = "KL_AutoAPIHop"
-ScreenGui.Parent = CoreGui
+ScreenGui.Name = "KL_BossTimeHop"
+ScreenGui.Parent = (gethui and gethui()) or game:GetService("CoreGui") or PlayerGui
 
 local ToggleBtn = Instance.new("TextButton")
 ToggleBtn.Size = UDim2.new(0, 45, 0, 45)
@@ -45,7 +44,7 @@ end)
 local Title = Instance.new("TextLabel")
 Title.Size = UDim2.new(1, 0, 0, 30)
 Title.BackgroundColor3 = Color3.fromRGB(30, 30, 42)
-Title.Text = "LỌC BOSS - HOP SERVER TỰ ĐỘNG"
+Title.Text = "LỌC THỜI GIAN BOSS - KING LEGACY"
 Title.TextColor3 = Color3.fromRGB(0, 255, 180)
 Title.Font = Enum.Font.SourceSansBold
 Title.TextSize = 12
@@ -80,94 +79,116 @@ local UIList = Instance.new("UIListLayout")
 UIList.Parent = Scroll
 UIList.Padding = UDim.new(0, 4)
 
-local function ScanAndHopServers()
+local function ScanServers()
     for _, c in pairs(Scroll:GetChildren()) do if c:IsA("Frame") then c:Destroy() end end
 
-    local Loading = Instance.new("TextLabel")
-    Loading.Size = UDim2.new(1, 0, 1, 0)
-    Loading.BackgroundTransparency = 1
-    Loading.Text = "🔄 Đang quét danh sách server từ hệ thống..."
-    Loading.TextColor3 = Color3.fromRGB(255, 255, 100)
-    Loading.Font = Enum.Font.SourceSansBold
-    Loading.TextSize = 11
-    Loading.Parent = Scroll
-
-    task.spawn(function()
-        local success, result = pcall(function()
-            local url = "https://games.roblox.com/v1/games/" .. game.PlaceId .. "/servers/Public?sortOrder=1&limit=100"
-            return HttpService:JSONDecode(game:HttpGet(url))
-        end)
-
-        Loading:Destroy()
-
-        if not success or not result or not result.data then
-            local Err = Instance.new("TextLabel")
-            Err.Size = UDim2.new(1, 0, 1, 0)
-            Err.BackgroundTransparency = 1
-            Err.Text = "⚠️ Không thể kết nối API server. Hãy thử lại sau!"
-            Err.TextColor3 = Color3.fromRGB(255, 100, 100)
-            Err.Font = Enum.Font.SourceSansBold
-            Err.TextSize = 11
-            Err.Parent = Scroll
-            return
+    local browserUI = nil
+    for _, gui in pairs(PlayerGui:GetDescendants()) do
+        if gui:IsA("TextLabel") and (gui.Text == "Server Browser" or gui.Text:find("Servertime")) then
+            browserUI = gui.Parent.Parent
+            break
         end
+    end
 
-        local count = 0
-        local cycle = BossCycles[SelectedBoss]
+    if not browserUI then
+        local Err = Instance.new("TextLabel")
+        Err.Size = UDim2.new(1, 0, 1, 0)
+        Err.BackgroundTransparency = 1
+        Err.Text = "⚠️ HÃY MỞ BẢNG 'Servers' TRONG GAME 1 LẦN ĐỂ TẢI DỮ LIỆU!"
+        Err.TextColor3 = Color3.fromRGB(255, 100, 100)
+        Err.Font = Enum.Font.SourceSansBold
+        Err.TextSize = 11
+        Err.TextWrapped = true
+        Err.Parent = Scroll
+        return
+    end
 
-        for _, svr in pairs(result.data) do
-            if svr.id ~= game.JobId and svr.playing < svr.maxPlayers then
-                -- Giả lập hoặc bóc tách thời gian server (dựa vào ping/fps hoặc chu kỳ ngẫu nhiên khả dụng)
-                -- Vì API Roblox công khai không trả về trực tiếp Servertime của King Legacy, 
-                -- ta sẽ tạo nút chuyển trực tiếp sang các server trống để săn Boss nhanh chóng:
-                count = count + 1
-                local targetJobId = svr.id
+    local count = 0
+    local cycle = BossCycles[SelectedBoss]
 
-                local ServerItem = Instance.new("Frame")
-                ServerItem.Size = UDim2.new(1, 0, 0, 42)
-                ServerItem.BackgroundColor3 = Color3.fromRGB(30, 30, 42)
-                ServerItem.Parent = Scroll
+    for _, item in pairs(browserUI:GetDescendants()) do
+        if item:IsA("TextLabel") and item.Text:find("Servertime:") then
+            local timeText = item.Text
+            local parts = {}
+            for p in string.gmatch(timeText, "%d+") do
+                table.insert(parts, tonumber(p))
+            end
 
-                local InfoText = Instance.new("TextLabel")
-                InfoText.Size = UDim2.new(0.6, 0, 1, 0)
-                InfoText.BackgroundTransparency = 1
-                InfoText.Text = " Server: " .. svr.playing .. "/" .. svr.maxPlayers .. " người\n ⚡ Ping: " .. (svr.ping or "N/A")
-                InfoText.TextColor3 = Color3.fromRGB(0, 255, 150)
-                InfoText.Font = Enum.Font.SourceSans
-                InfoText.TextSize = 10
-                InfoText.TextXAlignment = Enum.TextXAlignment.Left
-                InfoText.Parent = ServerItem
+            if #parts >= 3 then
+                local totalSec = 0
+                if #parts == 4 then
+                    totalSec = (parts[1] * 86400) + (parts[2] * 3600) + (parts[3] * 60) + parts[4]
+                elseif #parts == 3 then
+                    totalSec = (parts[1] * 3600) + (parts[2] * 60) + parts[3]
+                end
 
-                local HopBtn = Instance.new("TextButton")
-                HopBtn.Size = UDim2.new(0.36, 0, 0.7, 0)
-                HopBtn.Position = UDim2.new(0.62, 0, 0.15, 0)
-                HopBtn.BackgroundColor3 = Color3.fromRGB(0, 150, 100)
-                HopBtn.Text = "VÀO NGAY"
-                HopBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
-                HopBtn.Font = Enum.Font.SourceSansBold
-                HopBtn.TextSize = 11
-                HopBtn.Parent = ServerItem
+                local remainder = totalSec % cycle
+                local timeLeft = cycle - remainder
 
-                HopBtn.MouseButton1Click:Connect(function()
-                    HopBtn.Text = "Đang sang..."
-                    pcall(function()
-                        TeleportService:TeleportToPlaceInstance(game.PlaceId, targetJobId, LocalPlayer)
+                -- Lọc các server sắp ra boss trong vòng 5 phút tới hoặc vừa mới spawn
+                if timeLeft > 0 and timeLeft <= 300 then
+                    count = count + 1
+                    local parentFrame = item.Parent
+                    
+                    -- Lấy mã JobId ẩn được lưu trong cấu trúc nút bấm của dòng server đó
+                    local targetJobId = nil
+                    for _, obj in pairs(parentFrame:GetDescendants()) do
+                        if obj:IsA("TextButton") and obj.Name and #obj.Name > 10 then
+                            targetJobId = obj.Name
+                            break
+                        end
+                    end
+
+                    local ServerItem = Instance.new("Frame")
+                    ServerItem.Size = UDim2.new(1, 0, 0, 42)
+                    ServerItem.BackgroundColor3 = Color3.fromRGB(30, 30, 42)
+                    ServerItem.Parent = Scroll
+
+                    local InfoText = Instance.new("TextLabel")
+                    InfoText.Size = UDim2.new(0.6, 0, 1, 0)
+                    InfoText.BackgroundTransparency = 1
+                    InfoText.Text = " " .. timeText .. "\n ⏳ Sắp ra (~" .. math.ceil(timeLeft/60) .. " phút nữa)"
+                    InfoText.TextColor3 = Color3.fromRGB(0, 255, 150)
+                    InfoText.Font = Enum.Font.SourceSans
+                    InfoText.TextSize = 10
+                    InfoText.TextXAlignment = Enum.TextXAlignment.Left
+                    InfoText.Parent = ServerItem
+
+                    local HopBtn = Instance.new("TextButton")
+                    HopBtn.Size = UDim2.new(0.36, 0, 0.7, 0)
+                    HopBtn.Position = UDim2.new(0.62, 0, 0.15, 0)
+                    HopBtn.BackgroundColor3 = Color3.fromRGB(0, 150, 100)
+                    HopBtn.Text = "VÀO NGAY"
+                    HopBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+                    HopBtn.Font = Enum.Font.SourceSansBold
+                    HopBtn.TextSize = 11
+                    HopBtn.Parent = ServerItem
+
+                    HopBtn.MouseButton1Click:Connect(function()
+                        HopBtn.Text = "Đang vào..."
+                        pcall(function()
+                            if targetJobId then
+                                TeleportService:TeleportToPlaceInstance(game.PlaceId, targetJobId, LocalPlayer)
+                            else
+                                TeleportService:Teleport(game.PlaceId, LocalPlayer)
+                            end
+                        end)
                     end)
-                end)
+                end
             end
         end
-        Scroll.CanvasSize = UDim2.new(0, 0, 0, count * 46)
-    end)
+    end
+    Scroll.CanvasSize = UDim2.new(0, 0, 0, count * 46)
 end
 
 local ScanBtn = Instance.new("TextButton")
 ScanBtn.Size = UDim2.new(1, -16, 0, 28)
 ScanBtn.Position = UDim2.new(0, 8, 1, -34)
 ScanBtn.BackgroundColor3 = Color3.fromRGB(0, 150, 200)
-ScanBtn.Text = "QUÉT SERVER TRỐNG & SĂN BOSS"
+ScanBtn.Text = "QUÉT CHUẨN XÁC THỜI GIAN"
 ScanBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
 ScanBtn.Font = Enum.Font.SourceSansBold
 ScanBtn.TextSize = 11
 ScanBtn.Parent = MainFrame
 
-ScanBtn.MouseButton1Click:Connect(ScanAndHopServers)
+ScanBtn.MouseButton1Click:Connect(ScanServers)
