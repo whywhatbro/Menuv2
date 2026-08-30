@@ -1,5 +1,5 @@
 -- =================================================================
--- KING LEGACY - AUTO RƯƠNG (LOẠI BỎ RƯƠNG ĐẦU LÂU / MINION BOSS)
+-- KING LEGACY - AUTO RƯƠNG (CHỈ NHẶT RƯƠNG THƯỜNG, NÉ HOÀN TOÀN RƯƠNG BOSS)
 -- =================================================================
 
 local Players = game:GetService("Players")
@@ -15,7 +15,7 @@ local AutoChestRunning = false
 local HopDelay = 15
 
 local ScreenGui = Instance.new("ScreenGui")
-ScreenGui.Name = "KL_ChestNoSkull"
+ScreenGui.Name = "KL_ChestStrictBossFix"
 ScreenGui.Parent = CoreGui
 
 local ToggleBtn = Instance.new("TextButton")
@@ -43,10 +43,10 @@ end)
 local Title = Instance.new("TextLabel")
 Title.Size = UDim2.new(1, 0, 0, 30)
 Title.BackgroundColor3 = Color3.fromRGB(30, 30, 42)
-Title.Text = "AUTO RƯƠNG (ĐÃ FIX RƯƠNG ĐẦU LÂU MINION)"
+Title.Text = "AUTO RƯƠNG (ĐÃ CHẶN RƯƠNG BOSS)"
 Title.TextColor3 = Color3.fromRGB(0, 255, 180)
 Title.Font = Enum.Font.SourceSansBold
-Title.TextSize = 9
+Title.TextSize = 10
 Title.Parent = MainFrame
 
 local TimeBoxContainer = Instance.new("Frame")
@@ -114,7 +114,7 @@ local UIList = Instance.new("UIListLayout")
 UIList.Parent = Scroll
 UIList.Padding = UDim.new(0, 4)
 
--- Bộ lọc siêu cấp: Chặn rương đầu lâu, rương boss, rương quái minion
+-- Bộ lọc cực kỳ khắt khe: Chỉ nhận diện các rương spawn tự nhiên chuẩn
 task.spawn(function()
     while true do
         task.wait(0.4)
@@ -125,37 +125,29 @@ task.spawn(function()
                 if not AutoChestRunning then break end
                 
                 local name = obj.Name:lower()
-                local parentName = obj.Parent and obj.Parent.Name:lower() or ""
                 
-                -- Chỉ quét các đối tượng có chữ chest
+                -- Chỉ kiểm tra những đối tượng có tên chứa "chest"
                 if name:find("chest") then
+                    local isExcluded = false
                     local currentParent = obj.Parent
-                    local isInsideMobOrMinion = false
                     
+                    -- Kiểm tra xem nằm trong thư mục rác, boss, minion, event hay không
                     while currentParent and currentParent ~= Workspace do
                         local pName = currentParent.Name:lower()
-                        if pName:find("minion") or pName:find("mob") or pName:find("enemy") or pName:find("monster") or pName:find("quest") or pName:find("gacha") or pName:find("boss") or pName:find("npc") or pName:find("skull") or pName:find("special") then
-                            isInsideMobOrMinion = true
+                        if pName:find("minion") or pName:find("mob") or pName:find("enemy") or pName:find("monster") or pName:find("quest") or pName:find("gacha") or pName:find("boss") or pName:find("npc") or pName:find("skull") or pName:find("special") or pName:find("reward") or pName:find("event") or pName:find("raid") then
+                            isExcluded = true
                             break
                         end
                         currentParent = currentParent.Parent
                     end
                     
-                    -- Thêm từ khóa lọc loại trừ rương đầu lâu/boss/minion cụ thể
-                    local isExcluded = name:find("minion") 
-                        or name:find("mob") 
-                        or name:find("enemy") 
-                        or name:find("boss") 
-                        or name:find("quest")
-                        or name:find("delivery")
-                        or name:find("gacha")
-                        or name:find("effect")
-                        or name:find("anim")
-                        or name:find("skull")
-                        or name:find("special")
-                        or name:find("reward")
-
-                    if not isInsideMobOrMinion and not isExcluded then
+                    -- Loại trừ trực tiếp các từ khóa rương boss/đặc biệt trong tên
+                    if name:find("boss") or name:find("skull") or name:find("special") or name:find("reward") or name:find("raid") or name:find("sea") or name:find("hydra") then
+                        isExcluded = true
+                    end
+                    
+                    -- Lấy phần vật thể để check kích thước hoặc kiểm tra xem có phải rương mở rồi / rương đặc biệt không
+                    if not isExcluded then
                         local part = nil
                         if obj:IsA("Model") then
                             part = obj.PrimaryPart or obj:FindFirstChildWhichIsA("BasePart")
@@ -164,6 +156,13 @@ task.spawn(function()
                         end
                         
                         if part then
+                            -- Bỏ qua các rương quá to (thường là rương boss đầu lâu) dựa trên kích thước Size
+                            if part.Size.Magnitude > 12 then
+                                isExcluded = true
+                            end
+                        end
+                        
+                        if not isExcluded and part then
                             local pos = part.Position
                             hrp.CFrame = CFrame.new(pos + Vector3.new(0, 3, 0))
                             task.wait(0.25)
