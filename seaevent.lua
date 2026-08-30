@@ -1,5 +1,5 @@
 -- =================================================================
--- KING LEGACY - AUTO PLAY & FIX LỖI TELEPORT BOSS (HOÀN CHỈNH)
+-- KING LEGACY - AUTO PLAY & AUTO NHẶT RƯƠNG EVENT (FIX MOBILE HOÀN CHỈNH)
 -- =================================================================
 
 local Players = game:GetService("Players")
@@ -8,7 +8,6 @@ local TeleportService = game:GetService("TeleportService")
 local HttpService = game:GetService("HttpService")
 local CoreGui = (gethui and gethui()) or game:GetService("CoreGui")
 local Workspace = game:GetService("Workspace")
-local VirtualInputManager = game:GetService("VirtualInputManager")
 
 local VisitedServers = {}
 local AutoHopRunning = false
@@ -16,35 +15,46 @@ local AutoChestRunning = false
 local HopDelay = 15
 
 local ScreenGui = Instance.new("ScreenGui")
-ScreenGui.Name = "KL_StrictEventChest"
+ScreenGui.Name = "KL_MobileEventChest"
 ScreenGui.Parent = CoreGui
 
--- 1. CƠ CHẾ AUTO PLAY SIÊU CẤP: Tự động click nút PLAY bất kể nằm ở layer nào
+-- 1. CƠ CHẾ AUTO PLAY CHO MOBILE: Vừa kích hoạt nút vừa ẩn khung chờ để vào game ngay lập tức
 task.spawn(function()
     while true do
         task.wait(0.5)
         pcall(function()
             if not LocalPlayer.Character or not LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
-                -- Kiểm tra toàn bộ các UI đang hiển thị trên màn hình
-                for _, gui in pairs(CoreGui:GetDescendants()) do
-                    if (gui:IsA("TextButton") or gui:IsA("ImageButton")) and gui.Visible and gui.AbsoluteSize.X > 0 then
-                        local text = ""
-                        if gui:IsA("TextButton") then
-                            text = gui.Text:lower()
-                        end
-                        local name = gui.Name:lower()
-                        
-                        -- Nhận diện chính xác nút PLAY
-                        if text == "play" or text:find("play") or text:find("chơi") or name == "play" or name:find("playbtn") then
-                            local pos = gui.AbsolutePosition
-                            local size = gui.AbsoluteSize
-                            local cx = pos.X + size.X / 2
-                            local cy = pos.Y + size.Y / 2
-                            
-                            if VirtualInputManager and cx > 0 and cy > 0 then
-                                VirtualInputManager:SendMouseButtonEvent(cx, cy, 0, true, game, 0)
-                                task.wait(0.1)
-                                VirtualInputManager:SendMouseButtonEvent(cx, cy, 0, false, game, 0)
+                local playerGui = LocalPlayer:FindFirstChild("PlayerGui")
+                local containers = {CoreGui, playerGui}
+                
+                for _, container in pairs(containers) do
+                    if container then
+                        for _, gui in pairs(container:GetDescendants()) do
+                            if gui:IsA("TextButton") or gui:IsA("ImageButton") then
+                                local text = gui:IsA("TextButton") and gui.Text:lower() or ""
+                                local name = gui.Name:lower()
+                                
+                                if text:find("play") or text:find("start") or text:find("chơi") or name:find("play") then
+                                    -- Kích hoạt sự kiện bấm nút nếu executor hỗ trợ
+                                    pcall(function()
+                                        if firesignal then
+                                            firesignal(gui.MouseButton1Click)
+                                            firesignal(gui.Activated)
+                                        end
+                                    end)
+                                    
+                                    -- Ẩn hoặc tắt khung chứa màn hình chờ để game tự spawn nhân vật vào map
+                                    local parent = gui.Parent
+                                    while parent and parent ~= container do
+                                        if parent:IsA("Frame") or parent:IsA("ScreenGui") then
+                                            local pName = parent.Name:lower()
+                                            if pName:find("menu") or pName:find("intro") or pName:find("start") or pName:find("main") or pName:find("gui") then
+                                                parent.Visible = false
+                                            end
+                                        end
+                                        parent = parent.Parent
+                                    end
+                                end
                             end
                         end
                     end
@@ -54,7 +64,7 @@ task.spawn(function()
     end
 end)
 
--- GIAO DIỆN MENU
+-- GIAO DIỆN MENU ĐIỀU KHIỂN
 local ToggleBtn = Instance.new("TextButton")
 ToggleBtn.Size = UDim2.new(0, 45, 0, 45)
 ToggleBtn.Position = UDim2.new(0, 15, 0.3, 0)
@@ -161,10 +171,10 @@ local UIList = Instance.new("UIListLayout")
 UIList.Parent = Scroll
 UIList.Padding = UDim.new(0, 4)
 
--- 2. BỘ LỌC CHUẨN XÁC: Chỉ bắt rương Sea Event thực thụ, không bao giờ chạm vào quái/boss thường
+-- 2. CƠ CHẾ AUTO NHẶT RƯƠNG: Dịch chuyển + Kích hoạt TouchInterest/ProximityPrompt để nhận quà ngay lập tức
 task.spawn(function()
     while true do
-        task.wait(0.4)
+        task.wait(0.3)
         if AutoChestRunning and LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
             local hrp = LocalPlayer.Character.HumanoidRootPart
             
@@ -172,8 +182,6 @@ task.spawn(function()
                 if not AutoChestRunning then break end
                 
                 local name = obj.Name:lower()
-                
-                -- Phải là rương hoặc phần thưởng (chest / reward)
                 if name:find("chest") or name:find("reward") then
                     local current = obj.Parent
                     local isSeaEventChest = false
@@ -181,19 +189,15 @@ task.spawn(function()
                     
                     while current and current ~= Workspace do
                         local cName = current.Name:lower()
-                        
-                        -- Chặn tuyệt đối rương nhiệm vụ, rương thường hoặc quái/boss thông thường trên đảo
                         if cName:find("quest") or cName:find("daily") or cName:find("delivery") or cName:find("bandit") or cName:find("pirate") or cName:find("marine") then
                             isIgnored = true
                             break
                         end
                         
-                        -- Chỉ chấp nhận nếu nằm trong khu vực sự kiện biển chính thống
                         if cName:find("seaking") or cName:find("sea king") or cName:find("ghost") or cName:find("ship") or cName:find("hydra") then
                             isSeaEventChest = true
                             break
                         end
-                        
                         current = current.Parent
                     end
                     
@@ -208,8 +212,24 @@ task.spawn(function()
                         if part then
                             StatusLabel.Text = "Trạng thái: Đã nhặt chuẩn rương Sea Event!"
                             StatusLabel.TextColor3 = Color3.fromRGB(0, 255, 100)
-                            hrp.CFrame = CFrame.new(part.Position + Vector3.new(0, 3, 0))
-                            task.wait(0.3)
+                            
+                            -- Dịch chuyển tới rương
+                            hrp.CFrame = CFrame.new(part.Position + Vector3.new(0, 2, 0))
+                            
+                            -- Kích hoạt tương tác rương (nếu có ProximityPrompt hoặc TouchInterest)
+                            pcall(function()
+                                local prompt = obj:FindFirstChildWhichIsA("ProximityPrompt", true)
+                                if prompt then
+                                    fireproximityprompt(prompt)
+                                end
+                                if firetouchinterest then
+                                    firetouchinterest(hrp, part, 0)
+                                    task.wait(0.05)
+                                    firetouchinterest(hrp, part, 1)
+                                end
+                            end)
+                            
+                            task.wait(0.4)
                         end
                     end
                 end
