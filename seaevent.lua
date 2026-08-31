@@ -1,5 +1,5 @@
 -- =================================================================
--- KING LEGACY - V13 (THÊM AUTO HAKI BUSO - PHÍM J)
+-- KING LEGACY - V15 (AUTO BUSO NGAY KHI RESPAWN / BẮT ĐẦU GAME)
 -- =================================================================
 
 local Players = game:GetService("Players")
@@ -11,7 +11,6 @@ local Workspace = game:GetService("Workspace")
 local VirtualInputManager = game:GetService("VirtualInputManager")
 local UserInputService = game:GetService("UserInputService")
 local RunService = game:GetService("RunService")
-local Lighting = game:GetService("Lighting")
 local Camera = Workspace.CurrentCamera
 
 local ServerJoinTick = tick()
@@ -62,7 +61,7 @@ end)
 
 -- ================= GIAO DIỆN CHÍNH =================
 local ScreenGui = Instance.new("ScreenGui")
-ScreenGui.Name = "KL_MobileMasterGui_V13"
+ScreenGui.Name = "KL_MobileMasterGui_V15"
 ScreenGui.ResetOnSpawn = false
 ScreenGui.Parent = CoreGui
 
@@ -101,7 +100,7 @@ end)
 local Title = Instance.new("TextLabel")
 Title.Size = UDim2.new(1, 0, 0, 30)
 Title.BackgroundColor3 = Color3.fromRGB(30, 30, 42)
-Title.Text = "AUTO EVENT KL - FULL TÍNH NĂNG V13"
+Title.Text = "AUTO EVENT KL - FIX HAKI RESPAWN V15"
 Title.TextColor3 = Color3.fromRGB(0, 255, 180)
 Title.Font = Enum.Font.SourceSansBold
 Title.TextSize = 11
@@ -206,7 +205,7 @@ local function UpdateButtons()
     AutoChestBtn.Text = getgenv().KL_AutoChestRunning and "AUTO NHẶT RƯƠNG (ORBIT): BẬT" or "AUTO NHẶT RƯƠNG (ORBIT): TẮT"
 
     AutoBusoBtn.BackgroundColor3 = getgenv().KL_AutoBusoRunning and Color3.fromRGB(0, 180, 80) or Color3.fromRGB(180, 50, 50)
-    AutoBusoBtn.Text = getgenv().KL_AutoBusoRunning and "AUTO HAKI BUSO (PHÍM J): BẬT" or "AUTO HAKI BUSO (PHÍM J): TẮT"
+    AutoBusoBtn.Text = getgenv().KL_AutoBusoRunning and "AUTO HAKI BUSO (PHÍM T): BẬT" or "AUTO HAKI BUSO (PHÍM T): TẮT"
 end
 UpdateButtons()
 
@@ -266,20 +265,33 @@ task.spawn(function()
     end
 end)
 
--- ================= 2. AUTO HAKI BUSO (GIẢ LẬP NHẤN PHÍM J) =================
+-- ================= 2. AUTO HAKI BUSO (NHẤN PHÍM T NGAY KHI SPAWN) =================
+local function TriggerBuso()
+    if getgenv().KL_AutoBusoRunning and LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
+        pcall(function()
+            if VirtualInputManager then
+                VirtualInputManager:SendKeyEvent(true, Enum.KeyCode.T, false, game)
+                task.wait(0.05)
+                VirtualInputManager:SendKeyEvent(false, Enum.KeyCode.T, false, game)
+            end
+        end)
+    end
+end
+
+-- Kích hoạt ngay lập tức mỗi khi nhân vật chết/reset/vừa spawn ra
+LocalPlayer.CharacterAdded:Connect(function(char)
+    char:WaitForChild("HumanoidRootPart", 10)
+    char:WaitForChild("Humanoid", 10)
+    task.wait(0.8) -- Đợi nhân vật nạp xong chuyển động
+    TriggerBuso()
+end)
+
+-- Vòng lặp duy trì kích hoạt ban đầu và kiểm tra bổ trợ
 task.spawn(function()
+    TriggerBuso()
     while true do
-        task.wait(3) -- Cứ mỗi 3 giây kiểm tra và kích hoạt lại Haki Buso để đảm bảo luôn bật
-        if getgenv().KL_AutoBusoRunning and LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
-            pcall(function()
-                if VirtualInputManager then
-                    -- Gửi tín hiệu nhấn phím J (Phím bật Haki Buso trong King Legacy)
-                    VirtualInputManager:SendKeyEvent(true, Enum.KeyCode.J, false, game)
-                    task.wait(0.05)
-                    VirtualInputManager:SendKeyEvent(false, Enum.KeyCode.J, false, game)
-                end
-            end)
-        end
+        task.wait(2)
+        TriggerBuso()
     end
 end)
 
