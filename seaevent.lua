@@ -1,5 +1,5 @@
 -- =================================================================
--- KING LEGACY - V12 (FIX KẸT CAMERA & KÍCH HOẠT HUD)
+-- KING LEGACY - V13 (THÊM AUTO HAKI BUSO - PHÍM J)
 -- =================================================================
 
 local Players = game:GetService("Players")
@@ -19,7 +19,7 @@ local LastStuckCheck = 0
 
 -- ================= HỆ THỐNG LƯU CÀI ĐẶT =================
 local SettingsFile = "KingLegacy_AutoChest_Settings.json"
-local Settings = { AutoHop = false, AutoChest = false, HopDelay = 15, AutoPlay = true }
+local Settings = { AutoHop = false, AutoChest = false, HopDelay = 15, AutoPlay = true, AutoBuso = true }
 
 local function SaveSettings()
     pcall(function()
@@ -37,6 +37,7 @@ local function LoadSettings()
                 Settings.AutoChest = decoded.AutoChest ~= nil and decoded.AutoChest or false
                 Settings.HopDelay = decoded.HopDelay or 15
                 Settings.AutoPlay = decoded.AutoPlay ~= nil and decoded.AutoPlay or true
+                Settings.AutoBuso = decoded.AutoBuso ~= nil and decoded.AutoBuso or true
             end
         end
     end)
@@ -47,6 +48,7 @@ getgenv().KL_AutoHopRunning = Settings.AutoHop
 getgenv().KL_AutoChestRunning = Settings.AutoChest
 getgenv().KL_HopDelay = Settings.HopDelay
 getgenv().KL_AutoPlayRunning = Settings.AutoPlay
+getgenv().KL_AutoBusoRunning = Settings.AutoBuso
 
 local VisitedServers = {}
 local IsTeleporting = false
@@ -60,7 +62,7 @@ end)
 
 -- ================= GIAO DIỆN CHÍNH =================
 local ScreenGui = Instance.new("ScreenGui")
-ScreenGui.Name = "KL_MobileMasterGui_V12"
+ScreenGui.Name = "KL_MobileMasterGui_V13"
 ScreenGui.ResetOnSpawn = false
 ScreenGui.Parent = CoreGui
 
@@ -76,8 +78,8 @@ ToggleBtn.ZIndex = 10
 ToggleBtn.Parent = ScreenGui
 
 local MainFrame = Instance.new("Frame")
-MainFrame.Size = UDim2.new(0, 360, 0, 420)
-MainFrame.Position = UDim2.new(0.5, -180, 0.5, -210)
+MainFrame.Size = UDim2.new(0, 360, 0, 460)
+MainFrame.Position = UDim2.new(0.5, -180, 0.5, -230)
 MainFrame.BackgroundColor3 = Color3.fromRGB(20, 20, 28)
 MainFrame.Active = true
 MainFrame.Draggable = true
@@ -99,7 +101,7 @@ end)
 local Title = Instance.new("TextLabel")
 Title.Size = UDim2.new(1, 0, 0, 30)
 Title.BackgroundColor3 = Color3.fromRGB(30, 30, 42)
-Title.Text = "AUTO EVENT KL - FIX CAMERA & HUD"
+Title.Text = "AUTO EVENT KL - FULL TÍNH NĂNG V13"
 Title.TextColor3 = Color3.fromRGB(0, 255, 180)
 Title.Font = Enum.Font.SourceSansBold
 Title.TextSize = 11
@@ -110,7 +112,7 @@ local StatusLabel = Instance.new("TextLabel")
 StatusLabel.Size = UDim2.new(1, -16, 0, 25)
 StatusLabel.Position = UDim2.new(0, 8, 0, 35)
 StatusLabel.BackgroundTransparency = 1
-StatusLabel.Text = "Trạng thái: Sẵn sàng."
+StatusLabel.Text = "Trạng thái: Hoạt động ổn định."
 StatusLabel.TextColor3 = Color3.fromRGB(255, 255, 100)
 StatusLabel.Font = Enum.Font.SourceSans
 StatusLabel.TextSize = 11
@@ -118,7 +120,7 @@ StatusLabel.ZIndex = 9
 StatusLabel.Parent = MainFrame
 
 local AutoPlayBtn = Instance.new("TextButton")
-AutoPlayBtn.Size = UDim2.new(1, -16, 0, 32)
+AutoPlayBtn.Size = UDim2.new(1, -16, 0, 30)
 AutoPlayBtn.Position = UDim2.new(0, 8, 0, 68)
 AutoPlayBtn.Font = Enum.Font.SourceSansBold
 AutoPlayBtn.TextSize = 10
@@ -141,7 +143,7 @@ end)
 
 local TimeTextBox = Instance.new("TextBox")
 TimeTextBox.Size = UDim2.new(0.35, 0, 0, 25)
-TimeTextBox.Position = UDim2.new(0.62, 0, 0, 108)
+TimeTextBox.Position = UDim2.new(0.62, 0, 0, 104)
 TimeTextBox.BackgroundColor3 = Color3.fromRGB(45, 45, 65)
 TimeTextBox.Text = tostring(getgenv().KL_HopDelay)
 TimeTextBox.TextColor3 = Color3.fromRGB(0, 255, 180)
@@ -152,7 +154,7 @@ TimeTextBox.Parent = MainFrame
 
 local TimeLabel = Instance.new("TextLabel")
 TimeLabel.Size = UDim2.new(0.6, 0, 0, 25)
-TimeLabel.Position = UDim2.new(0, 8, 0, 108)
+TimeLabel.Position = UDim2.new(0, 8, 0, 104)
 TimeLabel.BackgroundTransparency = 1
 TimeLabel.Text = " Thời gian ở SV (giây):"
 TimeLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
@@ -173,20 +175,28 @@ TimeTextBox.FocusLost:Connect(function()
 end)
 
 local AutoHopBtn = Instance.new("TextButton")
-AutoHopBtn.Size = UDim2.new(1, -16, 0, 32)
-AutoHopBtn.Position = UDim2.new(0, 8, 0, 142)
+AutoHopBtn.Size = UDim2.new(1, -16, 0, 30)
+AutoHopBtn.Position = UDim2.new(0, 8, 0, 136)
 AutoHopBtn.ZIndex = 9
 AutoHopBtn.Parent = MainFrame
 AutoHopBtn.Font = Enum.Font.SourceSansBold
 AutoHopBtn.TextSize = 11
 
 local AutoChestBtn = Instance.new("TextButton")
-AutoChestBtn.Size = UDim2.new(1, -16, 0, 32)
-AutoChestBtn.Position = UDim2.new(0, 8, 0, 182)
+AutoChestBtn.Size = UDim2.new(1, -16, 0, 30)
+AutoChestBtn.Position = UDim2.new(0, 8, 0, 172)
 AutoChestBtn.ZIndex = 9
 AutoChestBtn.Parent = MainFrame
 AutoChestBtn.Font = Enum.Font.SourceSansBold
 AutoChestBtn.TextSize = 11
+
+local AutoBusoBtn = Instance.new("TextButton")
+AutoBusoBtn.Size = UDim2.new(1, -16, 0, 30)
+AutoBusoBtn.Position = UDim2.new(0, 8, 0, 208)
+AutoBusoBtn.ZIndex = 9
+AutoBusoBtn.Parent = MainFrame
+AutoBusoBtn.Font = Enum.Font.SourceSansBold
+AutoBusoBtn.TextSize = 11
 
 local function UpdateButtons()
     AutoHopBtn.BackgroundColor3 = getgenv().KL_AutoHopRunning and Color3.fromRGB(0, 180, 80) or Color3.fromRGB(180, 50, 50)
@@ -194,10 +204,13 @@ local function UpdateButtons()
     
     AutoChestBtn.BackgroundColor3 = getgenv().KL_AutoChestRunning and Color3.fromRGB(0, 180, 80) or Color3.fromRGB(180, 50, 50)
     AutoChestBtn.Text = getgenv().KL_AutoChestRunning and "AUTO NHẶT RƯƠNG (ORBIT): BẬT" or "AUTO NHẶT RƯƠNG (ORBIT): TẮT"
+
+    AutoBusoBtn.BackgroundColor3 = getgenv().KL_AutoBusoRunning and Color3.fromRGB(0, 180, 80) or Color3.fromRGB(180, 50, 50)
+    AutoBusoBtn.Text = getgenv().KL_AutoBusoRunning and "AUTO HAKI BUSO (PHÍM J): BẬT" or "AUTO HAKI BUSO (PHÍM J): TẮT"
 end
 UpdateButtons()
 
--- ================= 1. HÀM FIX KẸT CAMERA VÀ TỰ DỌN DẸP =================
+-- ================= 1. HÀM FIX CAMERA VÀ PLAY =================
 local function AutoFixCameraAndPlay()
     if not getgenv().KL_AutoPlayRunning then return end
     
@@ -206,8 +219,6 @@ local function AutoFixCameraAndPlay()
         if not PlayerGui then return end
         
         local playFound = false
-        
-        -- Quét tìm nút Play nếu chưa nhấn
         for _, gui in pairs(PlayerGui:GetDescendants()) do
             if (gui:IsA("TextButton") or gui:IsA("ImageButton")) and gui.Visible and gui.AbsolutePosition.X > 0 then
                 local name = string.lower(gui.Name)
@@ -228,21 +239,17 @@ local function AutoFixCameraAndPlay()
             end
         end
         
-        -- Nếu đã vào game (đã có nút di chuyển/nút nhảy)
         local char = LocalPlayer.Character
         local hrp = char and char:FindFirstChild("HumanoidRootPart")
         local humanoid = char and char:FindFirstChildOfClass("Humanoid")
         
         if char and hrp and humanoid then
             local camDist = (Camera.CFrame.Position - hrp.Position).Magnitude
-            
-            -- Nếu Camera bị kéo xa > 30 stud (đang bị kẹt góc nhìn menu)
             if camDist > 30 then
                 Camera.CameraType = Enum.CameraType.Custom
                 Camera.CameraSubject = humanoid
                 Camera.CFrame = hrp.CFrame * CFrame.new(0, 3, 10)
                 
-                -- Nếu kẹt liên tục > 3 giây -> Ép Reset nhân vật để game tự nạp lại HUD
                 if tick() - LastStuckCheck > 3 then
                     LastStuckCheck = tick()
                     humanoid.Health = 0
@@ -259,7 +266,24 @@ task.spawn(function()
     end
 end)
 
--- ================= 2. AUTO NHẶT RƯƠNG =================
+-- ================= 2. AUTO HAKI BUSO (GIẢ LẬP NHẤN PHÍM J) =================
+task.spawn(function()
+    while true do
+        task.wait(3) -- Cứ mỗi 3 giây kiểm tra và kích hoạt lại Haki Buso để đảm bảo luôn bật
+        if getgenv().KL_AutoBusoRunning and LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
+            pcall(function()
+                if VirtualInputManager then
+                    -- Gửi tín hiệu nhấn phím J (Phím bật Haki Buso trong King Legacy)
+                    VirtualInputManager:SendKeyEvent(true, Enum.KeyCode.J, false, game)
+                    task.wait(0.05)
+                    VirtualInputManager:SendKeyEvent(false, Enum.KeyCode.J, false, game)
+                end
+            end)
+        end
+    end
+end)
+
+-- ================= 3. AUTO NHẶT RƯƠNG =================
 local function GetValidChests(hrpPosition)
     local chests = {}
     for _, obj in pairs(Workspace:GetDescendants()) do
@@ -326,7 +350,7 @@ task.spawn(function()
     end
 end)
 
--- ================= 3. AUTO HOP SERVER =================
+-- ================= 4. AUTO HOP SERVER =================
 local function HopServer()
     if IsTeleporting then return end
     local success, result = pcall(function()
@@ -382,4 +406,11 @@ AutoChestBtn.MouseButton1Click:Connect(function()
     if not getgenv().KL_AutoChestRunning then
         StatusLabel.Text = "Trạng thái: Đã tắt."
     end
+end)
+
+AutoBusoBtn.MouseButton1Click:Connect(function()
+    getgenv().KL_AutoBusoRunning = not getgenv().KL_AutoBusoRunning
+    Settings.AutoBuso = getgenv().KL_AutoBusoRunning
+    SaveSettings()
+    UpdateButtons()
 end)
