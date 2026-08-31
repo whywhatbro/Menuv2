@@ -1,5 +1,5 @@
 -- =================================================================
--- KING LEGACY - V10 CHUẨN (CHỈ TẬP TRUNG NÚT PLAY)
+-- KING LEGACY - V11 (ANTI-STUCK CAMERA & BLUR FIX)
 -- =================================================================
 
 local Players = game:GetService("Players")
@@ -9,9 +9,9 @@ local HttpService = game:GetService("HttpService")
 local CoreGui = (gethui and gethui()) or game:GetService("CoreGui")
 local Workspace = game:GetService("Workspace")
 local VirtualInputManager = game:GetService("VirtualInputManager")
-local VirtualUser = game:GetService("VirtualUser")
 local UserInputService = game:GetService("UserInputService")
 local RunService = game:GetService("RunService")
+local Lighting = game:GetService("Lighting")
 local Camera = Workspace.CurrentCamera
 
 local ServerJoinTick = tick()
@@ -59,7 +59,7 @@ end)
 
 -- ================= GIAO DIỆN CHÍNH =================
 local ScreenGui = Instance.new("ScreenGui")
-ScreenGui.Name = "KL_MobileMasterGui_V10_PlayFix"
+ScreenGui.Name = "KL_MobileMasterGui_V11"
 ScreenGui.ResetOnSpawn = false
 ScreenGui.Parent = CoreGui
 
@@ -98,7 +98,7 @@ end)
 local Title = Instance.new("TextLabel")
 Title.Size = UDim2.new(1, 0, 0, 30)
 Title.BackgroundColor3 = Color3.fromRGB(30, 30, 42)
-Title.Text = "AUTO EVENT KL - FIX CHUẨN PLAY"
+Title.Text = "AUTO EVENT KL - FIX LỖI KẸT CAMERA"
 Title.TextColor3 = Color3.fromRGB(0, 255, 180)
 Title.Font = Enum.Font.SourceSansBold
 Title.TextSize = 11
@@ -196,8 +196,8 @@ local function UpdateButtons()
 end
 UpdateButtons()
 
--- ================= 1. HÀM CHỈ TẬP TRUNG ÉP BẤM PLAY =================
-local function ForceClickPlay()
+-- ================= 1. HÀM CHỐNG KẸT CAMERA VÀ PLAY =================
+local function ForceClickPlayAndFixCamera()
     if not getgenv().KL_AutoPlayRunning then return end
     
     pcall(function()
@@ -206,50 +206,55 @@ local function ForceClickPlay()
         
         local playFound = false
         
-        -- Quét tìm đúng nút Play
+        -- Bước 1: Quét tìm nút Play
         for _, gui in pairs(PlayerGui:GetDescendants()) do
             if (gui:IsA("TextButton") or gui:IsA("ImageButton")) and gui.Visible and gui.AbsolutePosition.X > 0 then
                 local name = string.lower(gui.Name)
                 local text = (gui:IsA("TextLabel") or gui:IsA("TextButton")) and string.lower(gui.Text) or ""
                 
-                -- Chỉ bắt từ khóa "play"
                 if name == "play" or string.find(text, "play") then
                     playFound = true
                     
-                    -- Cách 1: Kích hoạt sự kiện thẳng (Chắc chắn nhất)
+                    -- Ưu tiên click ảo chuột để giả lập như người bấm thật (tránh lỗi script game)
+                    if VirtualInputManager then
+                        local absPos = gui.AbsolutePosition
+                        local absSize = gui.AbsoluteSize
+                        local cx = absPos.X + (absSize.X / 2)
+                        local cy = absPos.Y + (absSize.Y / 2) + 36 -- bù thanh topbar
+                        VirtualInputManager:SendMouseButtonEvent(cx, cy, 0, true, game, 0)
+                        task.wait(0.1)
+                        VirtualInputManager:SendMouseButtonEvent(cx, cy, 0, false, game, 0)
+                    end
+                    
+                    -- Kích hoạt phụ trợ
                     if getconnections then
                         pcall(function()
                             for _, conn in pairs(getconnections(gui.MouseButton1Click)) do conn:Fire() end
-                            for _, conn in pairs(getconnections(gui.Activated)) do conn:Fire() end
                         end)
-                    end
-                    
-                    -- Cách 2: Click bằng VirtualUser 
-                    pcall(function() VirtualUser:ClickButton(gui) end)
-                    
-                    -- Cách 3: Firesignal (Tùy Executor)
-                    if firesignal then
-                        pcall(function() firesignal(gui.MouseButton1Click) end)
                     end
                 end
             end
         end
         
-        -- Cách 4: Nếu bị kẹt hoặc UI giấu tên nút, tự bấm tâm màn hình hơi lệch xuống
-        if not playFound and tick() - ServerJoinTick < 10 and VirtualInputManager then
-            local screenSize = Camera.ViewportSize
-            -- Thường nút Play của KL nằm ở giữa màn hình
-            VirtualInputManager:SendMouseButtonEvent(screenSize.X / 2, screenSize.Y / 2, 0, true, game, 0)
-            task.wait(0.05)
-            VirtualInputManager:SendMouseButtonEvent(screenSize.X / 2, screenSize.Y / 2, 0, false, game, 0)
-        end
-        
-        -- Khi nhân vật đã vào game thành công (không còn ở menu)
-        local char = LocalPlayer.Character
-        local humanoid = char and char:FindFirstChildOfClass("Humanoid")
-        if not playFound and char and humanoid and Camera.CameraSubject ~= humanoid then
-            Camera.CameraType = Enum.CameraType.Custom
-            Camera.CameraSubject = humanoid
+        -- Bước 2: NẾU ĐÃ QUA MENU NHƯNG BỊ KẸT NHƯ TRONG ẢNH
+        if not playFound then
+            local char = LocalPlayer.Character
+            local humanoid = char and char:FindFirstChildOfClass("Humanoid")
+            
+            -- Sửa góc nhìn Camera ép khoá vào nhân vật
+            if humanoid and (Camera.CameraSubject ~= humanoid or Camera.CameraType ~= Enum.CameraType.Custom) then
+                Camera.CameraType = Enum.CameraType.Custom
+                Camera.CameraSubject = humanoid
+            end
+            
+            -- Ép tắt toàn bộ hiệu ứng Blur/Xoá phông của menu
+            for _, effect in pairs(Lighting:GetChildren()) do
+                if effect:IsA("BlurEffect") or effect:IsA("DepthOfFieldEffect") or effect:IsA("ColorCorrectionEffect") then
+                    if effect.Enabled then
+                        effect.Enabled = false
+                    end
+                end
+            end
         end
     end)
 end
@@ -257,7 +262,7 @@ end
 task.spawn(function()
     while true do
         task.wait(2)
-        ForceClickPlay()
+        ForceClickPlayAndFixCamera()
     end
 end)
 
