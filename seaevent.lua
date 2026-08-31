@@ -1,5 +1,5 @@
 -- =================================================================
--- KING LEGACY - V10 PRO (ĐÃ SỬA LỖI TỰ ĐỘNG NHẤN NÚT PLAY)
+-- KING LEGACY - V10 CHUẨN (CHỈ TẬP TRUNG NÚT PLAY)
 -- =================================================================
 
 local Players = game:GetService("Players")
@@ -9,6 +9,7 @@ local HttpService = game:GetService("HttpService")
 local CoreGui = (gethui and gethui()) or game:GetService("CoreGui")
 local Workspace = game:GetService("Workspace")
 local VirtualInputManager = game:GetService("VirtualInputManager")
+local VirtualUser = game:GetService("VirtualUser")
 local UserInputService = game:GetService("UserInputService")
 local RunService = game:GetService("RunService")
 local Camera = Workspace.CurrentCamera
@@ -49,7 +50,7 @@ getgenv().KL_AutoPlayRunning = Settings.AutoPlay
 local VisitedServers = {}
 local IsTeleporting = false
 
-TeleportService.TeleportInitFailed:Connect(function(player, teleportResult, errorMessage)
+TeleportService.TeleportInitFailed:Connect(function()
     if getgenv().KL_AutoHopRunning then
         IsTeleporting = false
         task.wait(2)
@@ -58,11 +59,10 @@ end)
 
 -- ================= GIAO DIỆN CHÍNH =================
 local ScreenGui = Instance.new("ScreenGui")
-ScreenGui.Name = "KL_MobileMasterGui_V10_Alt"
+ScreenGui.Name = "KL_MobileMasterGui_V10_PlayFix"
 ScreenGui.ResetOnSpawn = false
 ScreenGui.Parent = CoreGui
 
--- NÚT MENU
 local ToggleBtn = Instance.new("TextButton")
 ToggleBtn.Size = UDim2.new(0, 45, 0, 45)
 ToggleBtn.Position = UDim2.new(0, 15, 0.3, 0)
@@ -84,7 +84,6 @@ MainFrame.Visible = false
 MainFrame.ZIndex = 9
 MainFrame.Parent = ScreenGui
 
--- BẮT SỰ KIỆN CHẠM THÔ (DÙNG CHO TRƯỜNG HỢP EXECUTOR KHÔNG ĂN NÚT)
 UserInputService.InputBegan:Connect(function(input)
     if input.UserInputType == Enum.UserInputType.Touch or input.UserInputType == Enum.UserInputType.MouseButton1 then
         local pos = input.Position
@@ -99,10 +98,10 @@ end)
 local Title = Instance.new("TextLabel")
 Title.Size = UDim2.new(1, 0, 0, 30)
 Title.BackgroundColor3 = Color3.fromRGB(30, 30, 42)
-Title.Text = "AUTO EVENT KL V10 (FIX PLAY BUG)"
+Title.Text = "AUTO EVENT KL - FIX CHUẨN PLAY"
 Title.TextColor3 = Color3.fromRGB(0, 255, 180)
 Title.Font = Enum.Font.SourceSansBold
-Title.TextSize = 10
+Title.TextSize = 11
 Title.ZIndex = 9
 Title.Parent = MainFrame
 
@@ -117,7 +116,6 @@ StatusLabel.TextSize = 11
 StatusLabel.ZIndex = 9
 StatusLabel.Parent = MainFrame
 
--- NÚT BẬT / TẮT TỰ ĐỘNG PLAY
 local AutoPlayBtn = Instance.new("TextButton")
 AutoPlayBtn.Size = UDim2.new(1, -16, 0, 32)
 AutoPlayBtn.Position = UDim2.new(0, 8, 0, 68)
@@ -129,7 +127,7 @@ AutoPlayBtn.Parent = MainFrame
 
 local function UpdateAutoPlayButton()
     AutoPlayBtn.BackgroundColor3 = getgenv().KL_AutoPlayRunning and Color3.fromRGB(0, 180, 80) or Color3.fromRGB(180, 50, 50)
-    AutoPlayBtn.Text = getgenv().KL_AutoPlayRunning and "TỰ ĐỘNG PLAY (THÔNG MINH): BẬT" or "TỰ ĐỘNG PLAY (THÔNG MINH): TẮT"
+    AutoPlayBtn.Text = getgenv().KL_AutoPlayRunning and "AUTO NHẤN PLAY: BẬT" or "AUTO NHẤN PLAY: TẮT"
 end
 UpdateAutoPlayButton()
 
@@ -198,87 +196,72 @@ local function UpdateButtons()
 end
 UpdateButtons()
 
--- ================= 1. HÀM KÍCH HOẠT PLAY THÔNG MINH =================
-local function ExecuteSmartPlay()
+-- ================= 1. HÀM CHỈ TẬP TRUNG ÉP BẤM PLAY =================
+local function ForceClickPlay()
     if not getgenv().KL_AutoPlayRunning then return end
     
     pcall(function()
-        local clicked = false
         local PlayerGui = LocalPlayer:FindFirstChild("PlayerGui")
+        if not PlayerGui then return end
         
-        -- Quét toàn bộ giao diện để tìm nút Play hoặc chọn phe
-        if PlayerGui then
-            for _, gui in pairs(PlayerGui:GetDescendants()) do
-                if (gui:IsA("TextButton") or gui:IsA("ImageButton")) and gui.Visible and gui.AbsolutePosition.X > 0 then
-                    local name = string.lower(gui.Name)
-                    local text = gui:IsA("TextButton") and string.lower(gui.Text) or ""
+        local playFound = false
+        
+        -- Quét tìm đúng nút Play
+        for _, gui in pairs(PlayerGui:GetDescendants()) do
+            if (gui:IsA("TextButton") or gui:IsA("ImageButton")) and gui.Visible and gui.AbsolutePosition.X > 0 then
+                local name = string.lower(gui.Name)
+                local text = (gui:IsA("TextLabel") or gui:IsA("TextButton")) and string.lower(gui.Text) or ""
+                
+                -- Chỉ bắt từ khóa "play"
+                if name == "play" or string.find(text, "play") then
+                    playFound = true
                     
-                    if string.find(name, "play") or string.find(text, "play") 
-                    or string.find(name, "pirate") or string.find(text, "pirate")
-                    or string.find(name, "marine") or string.find(text, "marine") then
-                        
-                        -- Cách 1: Gọi thẳng vào sự kiện Click của game (Nhanh và chuẩn nhất)
-                        if getconnections then
-                            pcall(function()
-                                for _, conn in pairs(getconnections(gui.MouseButton1Click)) do
-                                    conn:Fire()
-                                    clicked = true
-                                end
-                            end)
-                        end
-                        
-                        -- Cách 2: Nếu getconnections bị lỗi, dùng giả lập click chuột (Thay vì Touch)
-                        if not clicked and VirtualInputManager then
-                            local absPos = gui.AbsolutePosition
-                            local absSize = gui.AbsoluteSize
-                            local targetX = absPos.X + (absSize.X / 2)
-                            local targetY = absPos.Y + (absSize.Y / 2) + 36 -- Bù thanh topbar
-                            
-                            VirtualInputManager:SendMouseButtonEvent(targetX, targetY, 0, true, game, 0)
-                            task.wait(0.05)
-                            VirtualInputManager:SendMouseButtonEvent(targetX, targetY, 0, false, game, 0)
-                            clicked = true
-                        end
+                    -- Cách 1: Kích hoạt sự kiện thẳng (Chắc chắn nhất)
+                    if getconnections then
+                        pcall(function()
+                            for _, conn in pairs(getconnections(gui.MouseButton1Click)) do conn:Fire() end
+                            for _, conn in pairs(getconnections(gui.Activated)) do conn:Fire() end
+                        end)
+                    end
+                    
+                    -- Cách 2: Click bằng VirtualUser 
+                    pcall(function() VirtualUser:ClickButton(gui) end)
+                    
+                    -- Cách 3: Firesignal (Tùy Executor)
+                    if firesignal then
+                        pcall(function() firesignal(gui.MouseButton1Click) end)
                     end
                 end
             end
         end
         
-        -- Cách 3 (Dự phòng): Bấm thẳng tâm màn hình bằng Click Chuột nếu không quét ra nút
-        if not clicked and VirtualInputManager then
+        -- Cách 4: Nếu bị kẹt hoặc UI giấu tên nút, tự bấm tâm màn hình hơi lệch xuống
+        if not playFound and tick() - ServerJoinTick < 10 and VirtualInputManager then
             local screenSize = Camera.ViewportSize
-            local targetX = screenSize.X / 2
-            local targetY = screenSize.Y / 2 + 100 
-            VirtualInputManager:SendMouseButtonEvent(targetX, targetY, 0, true, game, 0)
+            -- Thường nút Play của KL nằm ở giữa màn hình
+            VirtualInputManager:SendMouseButtonEvent(screenSize.X / 2, screenSize.Y / 2, 0, true, game, 0)
             task.wait(0.05)
-            VirtualInputManager:SendMouseButtonEvent(targetX, targetY, 0, false, game, 0)
+            VirtualInputManager:SendMouseButtonEvent(screenSize.X / 2, screenSize.Y / 2, 0, false, game, 0)
+        end
+        
+        -- Khi nhân vật đã vào game thành công (không còn ở menu)
+        local char = LocalPlayer.Character
+        local humanoid = char and char:FindFirstChildOfClass("Humanoid")
+        if not playFound and char and humanoid and Camera.CameraSubject ~= humanoid then
+            Camera.CameraType = Enum.CameraType.Custom
+            Camera.CameraSubject = humanoid
         end
     end)
 end
 
--- Vòng lặp kiểm tra trạng thái để tự bấm Play
 task.spawn(function()
     while true do
-        task.wait(1.5)
-        pcall(function()
-            local char = LocalPlayer.Character
-            local humanoid = char and char:FindFirstChildOfClass("Humanoid")
-            
-            -- Nếu nhân vật chưa load, bị khóa, hoặc đang ở menu mới thực hiện bấm
-            if not char or not humanoid or humanoid.Health <= 0 then
-                ExecuteSmartPlay()
-            else
-                -- Nếu nhân vật đã spawn thành công thì trả lại Camera bình thường
-                if Camera.CameraSubject ~= humanoid or Camera.CameraType ~= Enum.CameraType.Custom then
-                    Camera.CameraType = Enum.CameraType.Custom
-                    Camera.CameraSubject = humanoid
-                end
-            end
-        end)
+        task.wait(2)
+        ForceClickPlay()
     end
 end)
 
--- ================= 2. AUTO NHẶT RƯƠNG (ORBIT) =================
+-- ================= 2. AUTO NHẶT RƯƠNG =================
 local function GetValidChests(hrpPosition)
     local chests = {}
     for _, obj in pairs(Workspace:GetDescendants()) do
