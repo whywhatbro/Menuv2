@@ -1,5 +1,5 @@
 -- =================================================================
--- KING LEGACY - V16 (AUTO SEA EVENT & DUALLY WEAPON COMBAT)
+-- KING LEGACY - V18 (FIX LỖI SPAM HAKI TỰ BẬT/TẮT + FULL AUTO)
 -- =================================================================
 
 local Players = game:GetService("Players")
@@ -22,7 +22,7 @@ local SettingsFile = "KingLegacy_AutoChest_Settings.json"
 local Settings = { 
     AutoHop = false, AutoChest = false, HopDelay = 15, AutoPlay = true, AutoBuso = true,
     AutoSeaEvent = false, TargetSeaKing = true, TargetHydra = true, TargetGhostShip = true,
-    MainWeaponType = "Sword", -- "Melee", "Sword", "Fruit"
+    MainWeaponType = "Sword",
     SubMelee = true, SubSword = false, SubFruit = true, SubGun = false
 }
 
@@ -52,9 +52,9 @@ getgenv().KL_AutoPlayRunning = Settings.AutoPlay
 getgenv().KL_AutoBusoRunning = Settings.AutoBuso
 getgenv().KL_AutoSeaEvent = Settings.AutoSeaEvent
 
--- ================= GIAO DIỆN CHÍNH (SCROLLING FRAME) =================
+-- ================= GIAO DIỆN CHÍNH =================
 local ScreenGui = Instance.new("ScreenGui")
-ScreenGui.Name = "KL_MobileMasterGui_V16"
+ScreenGui.Name = "KL_MobileMasterGui_V18"
 ScreenGui.ResetOnSpawn = false
 ScreenGui.Parent = CoreGui
 
@@ -93,7 +93,7 @@ end)
 local Title = Instance.new("TextLabel")
 Title.Size = UDim2.new(1, 0, 0, 30)
 Title.BackgroundColor3 = Color3.fromRGB(30, 30, 42)
-Title.Text = "KING LEGACY V16 - AUTO SEA EVENT & DUAL WEAPON"
+Title.Text = "KING LEGACY V18 - FIX TRIỆT ĐỂ SPAM HAKI"
 Title.TextColor3 = Color3.fromRGB(0, 255, 180)
 Title.Font = Enum.Font.SourceSansBold
 Title.TextSize = 10
@@ -120,7 +120,6 @@ StatusLabel.TextSize = 11
 StatusLabel.ZIndex = 9
 StatusLabel.Parent = ScrollFrame
 
--- Hàm tạo Nút bấm nhanh
 local function CreateButton(posY, sizeY, text)
     local btn = Instance.new("TextButton")
     btn.Size = UDim2.new(1, -10, 0, sizeY)
@@ -190,7 +189,6 @@ local function UpdateUI()
     AutoPlayBtn.Text = getgenv().KL_AutoPlayRunning and "AUTO NHẤN PLAY: BẬT" or "AUTO NHẤN PLAY: TẮT"
 end
 
--- Sự kiện Click Menu
 AutoSeaBtn.MouseButton1Click:Connect(function() Settings.AutoSeaEvent = not Settings.AutoSeaEvent SaveSettings() UpdateUI() end)
 SeaKingBtn.MouseButton1Click:Connect(function() Settings.TargetSeaKing = not Settings.TargetSeaKing SaveSettings() UpdateUI() end)
 HydraBtn.MouseButton1Click:Connect(function() Settings.TargetHydra = not Settings.TargetHydra SaveSettings() UpdateUI() end)
@@ -215,8 +213,62 @@ AutoPlayBtn.MouseButton1Click:Connect(function() getgenv().KL_AutoPlayRunning = 
 
 UpdateUI()
 
--- ================= 1. AUTO HAKI BUSO & FIX CAMERA =================
-local function TriggerBuso()
+-- ================= 1. HÀM TỰ DỌN DẸP MENU & NHẤN PLAY & FIX CAMERA =================
+local function AutoFixCameraAndPlay()
+    if not getgenv().KL_AutoPlayRunning then return end
+    
+    pcall(function()
+        local PlayerGui = LocalPlayer:FindFirstChild("PlayerGui")
+        if not PlayerGui then return end
+        
+        for _, gui in pairs(PlayerGui:GetDescendants()) do
+            if (gui:IsA("TextButton") or gui:IsA("ImageButton")) and gui.Visible and gui.AbsolutePosition.X > 0 then
+                local name = string.lower(gui.Name)
+                local text = (gui:IsA("TextLabel") or gui:IsA("TextButton")) and string.lower(gui.Text) or ""
+                
+                if name == "play" or string.find(text, "play") then
+                    if VirtualInputManager then
+                        local absPos = gui.AbsolutePosition
+                        local absSize = gui.AbsoluteSize
+                        local cx = absPos.X + (absSize.X / 2)
+                        local cy = absPos.Y + (absSize.Y / 2) + 36
+                        VirtualInputManager:SendMouseButtonEvent(cx, cy, 0, true, game, 0)
+                        task.wait(0.1)
+                        VirtualInputManager:SendMouseButtonEvent(cx, cy, 0, false, game, 0)
+                    end
+                end
+            end
+        end
+        
+        local char = LocalPlayer.Character
+        local hrp = char and char:FindFirstChild("HumanoidRootPart")
+        local humanoid = char and char:FindFirstChildOfClass("Humanoid")
+        
+        if char and hrp and humanoid then
+            local camDist = (Camera.CFrame.Position - hrp.Position).Magnitude
+            if camDist > 30 then
+                Camera.CameraType = Enum.CameraType.Custom
+                Camera.CameraSubject = humanoid
+                Camera.CFrame = hrp.CFrame * CFrame.new(0, 3, 10)
+                
+                if tick() - LastStuckCheck > 3 then
+                    LastStuckCheck = tick()
+                    humanoid.Health = 0
+                end
+            end
+        end
+    end)
+end
+
+task.spawn(function()
+    while true do
+        task.wait(1)
+        AutoFixCameraAndPlay()
+    end
+end)
+
+-- ================= 2. FIX CHUẨN AUTO HAKI BUSO (CHỈ BẬT 1 LẦN KHI RESPAWN) =================
+local function TriggerBusoOnce()
     if getgenv().KL_AutoBusoRunning and LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
         pcall(function()
             if VirtualInputManager then
@@ -228,13 +280,59 @@ local function TriggerBuso()
     end
 end
 
-LocalPlayer.CharacterAdded:Connect(function(char)
-    char:WaitForChild("HumanoidRootPart", 10)
-    task.wait(0.8)
-    TriggerBuso()
+-- Bật ngay 1 lần lúc vừa load script
+task.spawn(function()
+    task.wait(1.5)
+    TriggerBusoOnce()
 end)
 
--- ================= 2. HỆ THỐNG ĐỔI VŨ KHÍ & XẢ SKILL =================
+-- Chỉ bật đúng 1 lần duy nhất mỗi khi nhân vật chết/reset/vừa spawn ra
+LocalPlayer.CharacterAdded:Connect(function(char)
+    char:WaitForChild("HumanoidRootPart", 10)
+    task.wait(1.2) -- Chờ nhân vật nạp animation hoàn tất
+    TriggerBusoOnce()
+end)
+
+-- ================= 3. QUÉT RƯƠNG NGHIÊM NGẶT (LỌC GACHA/FRUIT/NPC) =================
+local function GetValidChests(hrpPosition)
+    local chests = {}
+    for _, obj in pairs(Workspace:GetDescendants()) do
+        local name = string.lower(obj.Name)
+        if (string.find(name, "chest") or string.find(name, "reward")) then
+            local isIgnored = false
+            if string.find(name, "gacha") or string.find(name, "fruit") or string.find(name, "barrel") or string.find(name, "crate") or string.find(name, "box") or string.find(name, "random") then
+                isIgnored = true
+            end
+            if not isIgnored then
+                local current = obj.Parent
+                while current and current ~= Workspace do
+                    local cName = string.lower(current.Name)
+                    if string.find(cName, "quest") or string.find(cName, "daily") or string.find(cName, "delivery") or string.find(cName, "bandit") or string.find(cName, "pirate") or string.find(cName, "marine") or string.find(cName, "gacha") or string.find(cName, "fruit") or string.find(cName, "spawn") or string.find(cName, "barrel") or string.find(cName, "shop") or string.find(cName, "dealer") then
+                        isIgnored = true
+                        break
+                    end
+                    if current:IsA("Model") and current:FindFirstChildOfClass("Humanoid") then
+                        isIgnored = true
+                        break
+                    end
+                    current = current.Parent
+                end
+            end
+            if not isIgnored then
+                local part = obj:IsA("BasePart") and obj or obj:FindFirstChildWhichIsA("BasePart")
+                if part then table.insert(chests, part) end
+            end
+        end
+    end
+    if hrpPosition then
+        table.sort(chests, function(a, b)
+            return (a.Position - hrpPosition).Magnitude < (b.Position - hrpPosition).Magnitude
+        end)
+    end
+    return chests
+end
+
+-- ================= 4. HỆ THỐNG COMBAT & XẢ SKILL VŨ KHÍ =================
 local function EquipToolCategory(category)
     local char = LocalPlayer.Character
     if not char then return nil end
@@ -268,7 +366,7 @@ local function CastSkills()
         VirtualInputManager:SendKeyEvent(true, key, false, game)
         task.wait(0.08)
         VirtualInputManager:SendKeyEvent(false, key, false, game)
-        task.wait(0.12)
+        task.wait(0.1)
     end
 end
 
@@ -278,7 +376,7 @@ local function AttackM1()
     VirtualInputManager:SendMouseButtonEvent(0, 0, 0, false, game, 0)
 end
 
--- ================= 3. AUTO SEA EVENT FARMING LOOP =================
+-- ================= 5. AUTO SEA EVENT & DUAL COMBAT LOOP =================
 local function GetSeaEventTarget()
     for _, obj in pairs(Workspace:GetDescendants()) do
         if obj:IsA("Model") and obj:FindFirstChildOfClass("Humanoid") and obj:FindFirstChild("HumanoidRootPart") then
@@ -301,7 +399,7 @@ local function HopServerNow()
         for _, svr in pairs(result.data) do
             if svr.id ~= game.JobId and not VisitedServers[svr.id] and svr.playing >= 8 and svr.playing <= 11 then
                 VisitedServers[svr.id] = true
-                StatusLabel.Text = "Trạng thái: Hoàn thành Event! Đang Hop Server..."
+                StatusLabel.Text = "Trạng thái: Hoàn thành! Đang Hop Server..."
                 TeleportService:TeleportToPlaceInstance(game.PlaceId, svr.id, LocalPlayer)
                 return
             end
@@ -321,11 +419,9 @@ task.spawn(function()
                 StatusLabel.Text = "Trạng thái: Đang đánh " .. target.Name
                 StatusLabel.TextColor3 = Color3.fromRGB(0, 255, 150)
                 
-                -- Giữ khoảng cách trên cao an toàn khi đánh Boss
                 hrp.CFrame = tHrp.CFrame * CFrame.new(0, 35, 0) * CFrame.Angles(math.rad(-90), 0, 0)
                 hrp.Velocity = Vector3.new(0,0,0)
 
-                -- 1. Đổi sang các vũ khí phụ để xả skill
                 local subCategories = {}
                 if Settings.SubMelee then table.insert(subCategories, "Melee") end
                 if Settings.SubSword then table.insert(subCategories, "Sword") end
@@ -339,29 +435,26 @@ task.spawn(function()
                     end
                 end
 
-                -- 2. Đổi về vũ khí chính để đánh M1 & Skill
                 if EquipToolCategory(Settings.MainWeaponType) then
                     task.wait(0.1)
                     CastSkills()
-                    for i = 1, 5 do AttackM1() task.wait(0.1) end
+                    for i = 1, 4 do AttackM1() task.wait(0.1) end
                 end
             else
-                -- Nếu hết Target Boss -> Kiểm tra Rương phần thưởng
-                local chestList = GetValidChests and GetValidChests(LocalPlayer.Character.HumanoidRootPart.Position) or {}
+                local chestList = GetValidChests(LocalPlayer.Character.HumanoidRootPart.Position)
                 if #chestList > 0 then
-                    StatusLabel.Text = "Trạng thái: Gom rương sau Event..."
+                    StatusLabel.Text = "Trạng thái: Gom rương chuẩn sau Event..."
                     for _, chestPart in ipairs(chestList) do
                         if chestPart and chestPart.Parent then
-                            LocalPlayer.Character.HumanoidRootPart.CFrame = chestPart.CFrame + Vector3.new(0, 2, 0)
+                            LocalPlayer.Character.HumanoidRootPart.CFrame = chestPart.CFrame + Vector3.new(0, 2.5, 0)
                             pcall(function()
-                                local prompt = chestPart.Parent:FindFirstChildWhichIsA("ProximityPrompt", true)
+                                local prompt = chestPart.Parent:FindFirstChildWhichIsA("ProximityPrompt", true) or chestPart:FindFirstChildWhichIsA("ProximityPrompt", true)
                                 if prompt then fireproximityprompt(prompt) end
                             end)
                             task.wait(0.3)
                         end
                     end
                 elseif getgenv().KL_AutoHopRunning then
-                    -- Gom xong rương -> Tự Hop Server mới
                     HopServerNow()
                 end
             end
@@ -369,19 +462,50 @@ task.spawn(function()
     end
 end)
 
--- ================= 4. HÀM QUÉT RƯƠNG THƯỜNG =================
-function GetValidChests(hrpPosition)
-    local chests = {}
-    for _, obj in pairs(Workspace:GetDescendants()) do
-        local name = string.lower(obj.Name)
-        if (string.find(name, "chest") or string.find(name, "reward")) then
-            local isIgnored = false
-            if string.find(name, "gacha") or string.find(name, "fruit") or string.find(name, "barrel") or string.find(name, "crate") or string.find(name, "box") then isIgnored = true end
-            if not isIgnored then
-                local part = obj:IsA("BasePart") and obj or obj:FindFirstChildWhichIsA("BasePart")
-                if part then table.insert(chests, part) end
+-- ================= 6. AUTO NHẶT RƯƠNG BÌNH THƯỜNG (ORBIT) =================
+task.spawn(function()
+    while true do
+        task.wait(0.5)
+        if getgenv().KL_AutoChestRunning and not Settings.AutoSeaEvent and LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
+            local hrp = LocalPlayer.Character.HumanoidRootPart
+            local chestList = GetValidChests(hrp.Position)
+            for _, chestPart in ipairs(chestList) do
+                if not getgenv().KL_AutoChestRunning then break end
+                local timeout = tick() + 4
+                while chestPart and chestPart.Parent and tick() < timeout and getgenv().KL_AutoChestRunning do
+                    StatusLabel.Text = "Trạng thái: Nhặt rương chuẩn..."
+                    StatusLabel.TextColor3 = Color3.fromRGB(0, 255, 100)
+                    hrp.CFrame = CFrame.new(chestPart.Position + Vector3.new(0, 2.5, 0))
+                    hrp.Velocity = Vector3.new(0, 0, 0)
+                    pcall(function()
+                        local prompt = chestPart.Parent:FindFirstChildWhichIsA("ProximityPrompt", true) or chestPart:FindFirstChildWhichIsA("ProximityPrompt", true)
+                        if prompt then fireproximityprompt(prompt) end
+                        if firetouchinterest then
+                            firetouchinterest(hrp, chestPart, 0)
+                            task.wait(0.01)
+                            firetouchinterest(hrp, chestPart, 1)
+                        end
+                    end)
+                    RunService.Heartbeat:Wait()
+                end
             end
         end
     end
-    return chests
-end
+end)
+
+-- ================= 7. AUTO HOP SERVER THƯỜNG =================
+task.spawn(function()
+    while true do
+        task.wait(1)
+        if getgenv().KL_AutoHopRunning and not Settings.AutoSeaEvent then
+            local elapsed = 0
+            while elapsed < getgenv().KL_HopDelay and getgenv().KL_AutoHopRunning do
+                task.wait(1)
+                elapsed = elapsed + 1
+            end
+            if getgenv().KL_AutoHopRunning and not IsTeleporting then
+                HopServerNow()
+            end
+        end
+    end
+end)
