@@ -1,5 +1,5 @@
 -- =================================================================
--- KING LEGACY - V20 FINAL MASTER (ULTIMATE AUTO SYSTEM)
+-- KING LEGACY - V21 FINAL MASTER (FIX HAKI + TARGET BOSS + SMART HOP)
 -- =================================================================
 
 local Players = game:GetService("Players")
@@ -13,15 +13,13 @@ local UserInputService = game:GetService("UserInputService")
 local RunService = game:GetService("RunService")
 
 local VisitedServers = {}
-local IsTeleporting = false
 local MasterRoutineActive = false
 
--- ================= HỆ THỐNG CÀI ĐẶT & SKILL SELECTION =================
-local SettingsFile = "KL_Settings_V20.json"
+-- ================= HỆ THỐNG CÀI ĐẶT & SKILL =================
+local SettingsFile = "KL_Settings_V21.json"
 local Settings = { 
     MasterAuto = false,
     MainWeaponType = "Sword",
-    -- Skill Tùy Chỉnh Cho Từng Loại Vũ Khí
     Skills = {
         Melee = {Z = true, X = true, C = true, V = true, E = false},
         Sword = {Z = true, X = true, C = false, V = false, E = false},
@@ -37,16 +35,17 @@ end
 local function LoadSettings()
     pcall(function()
         if isfile and isfile(SettingsFile) then
-            local decoded = HttpService:JSONEncode(readfile(SettingsFile))
+            local data = readfile(SettingsFile)
+            local decoded = HttpService:JSONDecode(data)
             if decoded then for k, v in pairs(decoded) do Settings[k] = v end end
         end
     end)
 end
 LoadSettings()
 
--- ================= GIAO DIỆN CHÍNH (UI V20) =================
+-- ================= GIAO DIỆN UI V21 =================
 local ScreenGui = Instance.new("ScreenGui")
-ScreenGui.Name = "KL_MasterGui_V20"
+ScreenGui.Name = "KL_MasterGui_V21"
 ScreenGui.ResetOnSpawn = false
 ScreenGui.Parent = CoreGui
 
@@ -54,7 +53,7 @@ local ToggleBtn = Instance.new("TextButton")
 ToggleBtn.Size = UDim2.new(0, 50, 0, 50)
 ToggleBtn.Position = UDim2.new(0, 15, 0.3, 0)
 ToggleBtn.BackgroundColor3 = Color3.fromRGB(0, 200, 100)
-ToggleBtn.Text = "MASTER"
+ToggleBtn.Text = "MENU"
 ToggleBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
 ToggleBtn.Font = Enum.Font.SourceSansBold
 ToggleBtn.TextSize = 11
@@ -85,7 +84,7 @@ end)
 local Title = Instance.new("TextLabel")
 Title.Size = UDim2.new(1, 0, 0, 30)
 Title.BackgroundColor3 = Color3.fromRGB(30, 30, 45)
-Title.Text = "KING LEGACY V20 - ALL IN ONE MASTER SYSTEM"
+Title.Text = "KING LEGACY V21 - FIX HAKI & SMART EVENT"
 Title.TextColor3 = Color3.fromRGB(0, 255, 180)
 Title.Font = Enum.Font.SourceSansBold
 Title.TextSize = 11
@@ -116,7 +115,7 @@ local MasterBtn = Instance.new("TextButton")
 MasterBtn.Size = UDim2.new(1, -10, 0, 40)
 MasterBtn.Position = UDim2.new(0, 5, 0, 30)
 MasterBtn.Font = Enum.Font.SourceSansBold
-MasterBtn.TextSize = 13
+MasterBtn.TextSize = 12
 MasterBtn.ZIndex = 9
 MasterBtn.Parent = ScrollFrame
 
@@ -129,7 +128,6 @@ MainWeaponBtn.TextSize = 11
 MainWeaponBtn.ZIndex = 9
 MainWeaponBtn.Parent = ScrollFrame
 
--- UI Cấu hình Skill
 local SkillFrame = Instance.new("Frame")
 SkillFrame.Size = UDim2.new(1, -10, 0, 180)
 SkillFrame.Position = UDim2.new(0, 5, 0, 110)
@@ -139,7 +137,7 @@ SkillFrame.Parent = ScrollFrame
 
 local SkillTitle = Instance.new("TextLabel")
 SkillTitle.Size = UDim2.new(1, 0, 0, 25)
-SkillTitle.Text = "CẤU HÌNH SPAM SKILL CHO VŨ KHÍ"
+SkillTitle.Text = "CẤU HÌNH SPAM SKILL VŨ KHÍ"
 SkillTitle.TextColor3 = Color3.fromRGB(255, 200, 0)
 SkillTitle.Font = Enum.Font.SourceSansBold
 SkillTitle.TextSize = 11
@@ -169,7 +167,6 @@ local function CreateSkillToggle(category, key, posX, posY)
     updateBtnUI()
 end
 
--- Render các nút toggle skill
 local cats = {"Melee", "Sword", "Fruit", "Gun"}
 local keys = {"Z", "X", "C", "V", "E"}
 for cIdx, cat in ipairs(cats) do
@@ -201,7 +198,7 @@ end)
 
 UpdateUI()
 
--- ================= 1. NÚT PLAY VÀ BẬT HAKI (SIÊU TỐC) =================
+-- ================= 1. HỆ THỐNG NHẤN PLAY VÀ BẬT HAKI TAY (FIXED) =================
 local function AutoPressPlay()
     pcall(function()
         local PlayerGui = LocalPlayer:FindFirstChild("PlayerGui")
@@ -235,21 +232,20 @@ local function TriggerBusoOnce()
     end
 end
 
--- Tối ưu hóa Respawn: Nhận diện siêu nhanh khi vừa xuất hiện
+-- Bật Haki ngay khi nhân vật load vào hoặc hồi sinh
 LocalPlayer.CharacterAdded:Connect(function(char)
-    char:WaitForChild("HumanoidRootPart", 5)
-    task.wait(0.1) -- Phản hồi dịch chuyển ngay lập tức
+    char:WaitForChild("HumanoidRootPart", 8)
+    task.wait(1.2) -- Chờ game load hoàn tất nhân vật rồi mới bật Haki
     TriggerBusoOnce()
 end)
 
--- ================= 2. QUÉT RƯƠNG MAP (LỌC RƯƠNG MINION TIER/BEAM/DROPS) =================
+-- ================= 2. QUÉT RƯƠNG MAP CHUẨN XÁC (LỌC SẠCH MINION/TIER) =================
 local function GetValidMapChests(hrpPosition)
     local chests = {}
     for _, obj in pairs(Workspace:GetDescendants()) do
         local name = string.lower(obj.Name)
         if (string.find(name, "chest") or string.find(name, "reward")) then
             local isIgnored = false
-            -- Lọc triệt để rương Minion (Tia 1, Tia 2, Drop, Beam, Tier) & NPC Gacha
             if string.find(name, "tier") or string.find(name, "drop") or string.find(name, "beam") or string.find(name, "light") or string.find(name, "minion") or string.find(name, "spark") or string.find(name, "gacha") or string.find(name, "fruit") or string.find(name, "barrel") or string.find(name, "crate") or string.find(name, "box") then
                 isIgnored = true
             end
@@ -282,7 +278,7 @@ local function GetValidMapChests(hrpPosition)
     return chests
 end
 
--- ================= 3. HỆ THỐNG SKILL VÀ VŨ KHÍ TÙY CHỈNH =================
+-- ================= 3. HỆ THỐNG VŨ KHÍ & SPAM SKILL =================
 local function EquipToolCategory(category)
     local char = LocalPlayer.Character
     if not char then return nil end
@@ -331,7 +327,7 @@ local function AttackM1()
     VirtualInputManager:SendMouseButtonEvent(0, 0, 0, false, game, 0)
 end
 
--- ================= 4. QUÉT SEA EVENT THEO ƯU TIÊN (HYDRA -> SEA KING -> GHOST SHIP) =================
+-- ================= 4. NHẬN DIỆN SEA EVENT CHUẨN XÁC (LOẠI BỎ MINION) =================
 local function GetPrioritySeaEventTarget()
     local hydraTarget = nil
     local seaKingTarget = nil
@@ -341,19 +337,23 @@ local function GetPrioritySeaEventTarget()
         if obj:IsA("Model") and obj:FindFirstChildOfClass("Humanoid") and obj:FindFirstChild("HumanoidRootPart") then
             local name = string.lower(obj.Name)
             local hum = obj:FindFirstChildOfClass("Humanoid")
-            if hum.Health > 0 then
+            
+            -- Loại bỏ hoàn toàn quái nhỏ, bandit, marine, minion
+            local isMinion = name:find("bandit") or name:find("pirate") or name:find("marine") or name:find("minion") or name:find("brute") or name:find("soldier")
+            
+            if hum.Health > 0 and not isMinion then
                 if name:find("hydra") or name:find("serpent") then
                     hydraTarget = obj
                 elseif name:find("sea king") or name:find("seabeast") or name:find("sea beast") or name:find("beast") or name:find("king sea") then
                     seaKingTarget = obj
-                elseif name:find("ghost ship") or name:find("ghostship") or name:find("ship") then
+                elseif name:find("ghost ship") or name:find("ghostship") or (name:find("ship") and not name:find("player")) then
                     ghostShipTarget = obj
                 end
             end
         end
     end
 
-    -- Ưu tiên 1: Hydra -> Ưu tiên 2: Sea King -> Ưu tiên 3: Tàu ma
+    -- Sắp xếp ưu tiên: Hydra (1) -> Sea King (2) -> Tàu Ma (3)
     if hydraTarget then return hydraTarget end
     if seaKingTarget then return seaKingTarget end
     if ghostShipTarget then return ghostShipTarget end
@@ -367,7 +367,7 @@ local function HopServerNow()
         for _, svr in pairs(result.data) do
             if svr.id ~= game.JobId and not VisitedServers[svr.id] and svr.playing >= 8 and svr.playing <= 11 then
                 VisitedServers[svr.id] = true
-                StatusLabel.Text = "Trạng thái: Đang Hop Server..."
+                StatusLabel.Text = "Trạng thái: Đang đổi Server..."
                 TeleportService:TeleportToPlaceInstance(game.PlaceId, svr.id, LocalPlayer)
                 return
             end
@@ -375,10 +375,13 @@ local function HopServerNow()
     end
 end
 
--- ================= 5. LUỒNG MASTER CHÍNH (ALL IN ONE ROUTINE) =================
+-- ================= 5. LUỒNG MASTER THÔNG MINH (ALL IN ONE) =================
 task.spawn(function()
+    task.wait(2)
+    TriggerBusoOnce()
+    
     while true do
-        task.wait(0.2)
+        task.wait(0.3)
         AutoPressPlay()
         
         if Settings.MasterAuto and not MasterRoutineActive then
@@ -388,33 +391,30 @@ task.spawn(function()
             local hrp = char:WaitForChild("HumanoidRootPart", 5)
             
             if hrp then
-                -- Buớc 1: Kiểm tra Sea Event
                 local seaTarget = GetPrioritySeaEventTarget()
+                
                 if seaTarget and seaTarget:FindFirstChild("HumanoidRootPart") then
-                    StatusLabel.Text = "Đánh Sea Event: " .. seaTarget.Name
+                    -- THỰC THI KHI CÓ SEA EVENT
+                    StatusLabel.Text = "Đang đánh Boss: " .. seaTarget.Name
                     StatusLabel.TextColor3 = Color3.fromRGB(0, 255, 150)
 
                     local tHrp = seaTarget.HumanoidRootPart
                     
-                    -- Khóa vị trí CFrame liên tục trên không để không rơi xuống nước
                     local bodyVelocity = Instance.new("BodyVelocity")
                     bodyVelocity.Velocity = Vector3.new(0, 0, 0)
                     bodyVelocity.MaxForce = Vector3.new(1e9, 1e9, 1e9)
                     bodyVelocity.Parent = hrp
 
                     while seaTarget and seaTarget:FindFirstChildOfClass("Humanoid") and seaTarget:FindFirstChildOfClass("Humanoid").Health > 0 and Settings.MasterAuto do
-                        -- Bám chặt theo vị trí chuyển động của Tàu Ma/Boss (Cao hơn 32 studs)
                         hrp.CFrame = tHrp.CFrame * CFrame.new(0, 32, 0) * CFrame.Angles(math.rad(-90), 0, 0)
                         
-                        -- Xả Skill từng loại vũ khí có trong túi
                         for _, cat in ipairs({"Melee", "Sword", "Fruit", "Gun"}) do
                             if EquipToolCategory(cat) then
-                                task.wait(0.05)
+                                task.wait(0.04)
                                 CastSelectedSkills(cat)
                             end
                         end
                         
-                        -- Đánh M1 Vũ khí chính
                         if EquipToolCategory(Settings.MainWeaponType) then
                             for i = 1, 3 do AttackM1() end
                         end
@@ -423,17 +423,13 @@ task.spawn(function()
                     end
                     
                     if bodyVelocity then bodyVelocity:Destroy() end
-                else
-                    -- Bước 2: Không có Sea Event -> Nhặt Rương Map (Đã lọc rương minion)
-                    StatusLabel.Text = "Không có Event. Đang gom rương Map..."
-                    StatusLabel.TextColor3 = Color3.fromRGB(255, 255, 100)
                     
+                    -- Sau khi hạ xong Event -> Gom rương xung quanh
+                    StatusLabel.Text = "Đã hạ Event! Đang gom rương..."
                     local chests = GetValidMapChests(hrp.Position)
                     for _, chestPart in ipairs(chests) do
                         if not Settings.MasterAuto then break end
-                        if GetPrioritySeaEventTarget() then break end -- Ngắt nếu xuất hiện Event
-                        
-                        local timeout = tick() + 3
+                        local timeout = tick() + 2.5
                         while chestPart and chestPart.Parent and tick() < timeout and Settings.MasterAuto do
                             hrp.CFrame = CFrame.new(chestPart.Position + Vector3.new(0, 2.5, 0))
                             hrp.Velocity = Vector3.new(0, 0, 0)
@@ -445,17 +441,47 @@ task.spawn(function()
                         end
                     end
                     
-                    -- Bước 3: Đợi 45 giây sau khi nhặt xong rồi Hop Server
-                    StatusLabel.Text = "Đã xong map. Chờ Hop Server..."
+                    -- Chờ từ 30 giây đến 1 phút (chọn 45 giây) rồi đổi Server
+                    StatusLabel.Text = "Hoàn tất Sea Event. Chờ đổi Server..."
                     local waitTimer = 0
                     while waitTimer < 45 and Settings.MasterAuto do
                         task.wait(1)
                         waitTimer = waitTimer + 1
-                        StatusLabel.Text = "Hop Server sau: " .. (45 - waitTimer) .. "s"
+                        StatusLabel.Text = "Đổi Server sau: " .. (45 - waitTimer) .. "s"
                     end
                     
                     if Settings.MasterAuto then
                         HopServerNow()
+                    end
+                else
+                    -- THỰC THI KHI KHÔNG CÓ SEA EVENT (QUÉT RƯƠNG HOẶC ĐỔI SERVER)
+                    StatusLabel.Text = "Không có Event. Đang quét rương trong Server..."
+                    StatusLabel.TextColor3 = Color3.fromRGB(255, 255, 100)
+                    
+                    local chests = GetValidMapChests(hrp.Position)
+                    
+                    if #chests > 0 then
+                        -- Nếu tìm thấy rương, tiến hành nhặt
+                        for _, chestPart in ipairs(chests) do
+                            if not Settings.MasterAuto then break end
+                            if GetPrioritySeaEventTarget() then break end -- Ngắt nếu xuất hiện Event giữa chừng
+                            
+                            local timeout = tick() + 3
+                            while chestPart and chestPart.Parent and tick() < timeout and Settings.MasterAuto do
+                                hrp.CFrame = CFrame.new(chestPart.Position + Vector3.new(0, 2.5, 0))
+                                hrp.Velocity = Vector3.new(0, 0, 0)
+                                pcall(function()
+                                    local prompt = chestPart.Parent:FindFirstChildWhichIsA("ProximityPrompt", true) or chestPart:FindFirstChildWhichIsA("ProximityPrompt", true)
+                                    if prompt then fireproximityprompt(prompt) end
+                                end)
+                                RunService.Heartbeat:Wait()
+                            end
+                        end
+                    else
+                        -- Nếu không có Sea Event và không có rương nào trong server -> Đổi Server ngay lập tức
+                        StatusLabel.Text = "Server trống (Không Event/Không Rương). Đổi Server..."
+                        HopServerNow()
+                        task.wait(5)
                     end
                 end
             end
