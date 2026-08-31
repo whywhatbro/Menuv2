@@ -1,5 +1,5 @@
 -- =================================================================
--- KING LEGACY - V11 (ANTI-STUCK CAMERA & BLUR FIX)
+-- KING LEGACY - V12 (FIX KẸT CAMERA & KÍCH HOẠT HUD)
 -- =================================================================
 
 local Players = game:GetService("Players")
@@ -15,6 +15,7 @@ local Lighting = game:GetService("Lighting")
 local Camera = Workspace.CurrentCamera
 
 local ServerJoinTick = tick()
+local LastStuckCheck = 0
 
 -- ================= HỆ THỐNG LƯU CÀI ĐẶT =================
 local SettingsFile = "KingLegacy_AutoChest_Settings.json"
@@ -59,7 +60,7 @@ end)
 
 -- ================= GIAO DIỆN CHÍNH =================
 local ScreenGui = Instance.new("ScreenGui")
-ScreenGui.Name = "KL_MobileMasterGui_V11"
+ScreenGui.Name = "KL_MobileMasterGui_V12"
 ScreenGui.ResetOnSpawn = false
 ScreenGui.Parent = CoreGui
 
@@ -98,7 +99,7 @@ end)
 local Title = Instance.new("TextLabel")
 Title.Size = UDim2.new(1, 0, 0, 30)
 Title.BackgroundColor3 = Color3.fromRGB(30, 30, 42)
-Title.Text = "AUTO EVENT KL - FIX LỖI KẸT CAMERA"
+Title.Text = "AUTO EVENT KL - FIX CAMERA & HUD"
 Title.TextColor3 = Color3.fromRGB(0, 255, 180)
 Title.Font = Enum.Font.SourceSansBold
 Title.TextSize = 11
@@ -196,8 +197,8 @@ local function UpdateButtons()
 end
 UpdateButtons()
 
--- ================= 1. HÀM CHỐNG KẸT CAMERA VÀ PLAY =================
-local function ForceClickPlayAndFixCamera()
+-- ================= 1. HÀM FIX KẸT CAMERA VÀ TỰ DỌN DẸP =================
+local function AutoFixCameraAndPlay()
     if not getgenv().KL_AutoPlayRunning then return end
     
     pcall(function()
@@ -206,7 +207,7 @@ local function ForceClickPlayAndFixCamera()
         
         local playFound = false
         
-        -- Bước 1: Quét tìm nút Play
+        -- Quét tìm nút Play nếu chưa nhấn
         for _, gui in pairs(PlayerGui:GetDescendants()) do
             if (gui:IsA("TextButton") or gui:IsA("ImageButton")) and gui.Visible and gui.AbsolutePosition.X > 0 then
                 local name = string.lower(gui.Name)
@@ -214,45 +215,37 @@ local function ForceClickPlayAndFixCamera()
                 
                 if name == "play" or string.find(text, "play") then
                     playFound = true
-                    
-                    -- Ưu tiên click ảo chuột để giả lập như người bấm thật (tránh lỗi script game)
                     if VirtualInputManager then
                         local absPos = gui.AbsolutePosition
                         local absSize = gui.AbsoluteSize
                         local cx = absPos.X + (absSize.X / 2)
-                        local cy = absPos.Y + (absSize.Y / 2) + 36 -- bù thanh topbar
+                        local cy = absPos.Y + (absSize.Y / 2) + 36
                         VirtualInputManager:SendMouseButtonEvent(cx, cy, 0, true, game, 0)
                         task.wait(0.1)
                         VirtualInputManager:SendMouseButtonEvent(cx, cy, 0, false, game, 0)
-                    end
-                    
-                    -- Kích hoạt phụ trợ
-                    if getconnections then
-                        pcall(function()
-                            for _, conn in pairs(getconnections(gui.MouseButton1Click)) do conn:Fire() end
-                        end)
                     end
                 end
             end
         end
         
-        -- Bước 2: NẾU ĐÃ QUA MENU NHƯNG BỊ KẸT NHƯ TRONG ẢNH
-        if not playFound then
-            local char = LocalPlayer.Character
-            local humanoid = char and char:FindFirstChildOfClass("Humanoid")
+        -- Nếu đã vào game (đã có nút di chuyển/nút nhảy)
+        local char = LocalPlayer.Character
+        local hrp = char and char:FindFirstChild("HumanoidRootPart")
+        local humanoid = char and char:FindFirstChildOfClass("Humanoid")
+        
+        if char and hrp and humanoid then
+            local camDist = (Camera.CFrame.Position - hrp.Position).Magnitude
             
-            -- Sửa góc nhìn Camera ép khoá vào nhân vật
-            if humanoid and (Camera.CameraSubject ~= humanoid or Camera.CameraType ~= Enum.CameraType.Custom) then
+            -- Nếu Camera bị kéo xa > 30 stud (đang bị kẹt góc nhìn menu)
+            if camDist > 30 then
                 Camera.CameraType = Enum.CameraType.Custom
                 Camera.CameraSubject = humanoid
-            end
-            
-            -- Ép tắt toàn bộ hiệu ứng Blur/Xoá phông của menu
-            for _, effect in pairs(Lighting:GetChildren()) do
-                if effect:IsA("BlurEffect") or effect:IsA("DepthOfFieldEffect") or effect:IsA("ColorCorrectionEffect") then
-                    if effect.Enabled then
-                        effect.Enabled = false
-                    end
+                Camera.CFrame = hrp.CFrame * CFrame.new(0, 3, 10)
+                
+                -- Nếu kẹt liên tục > 3 giây -> Ép Reset nhân vật để game tự nạp lại HUD
+                if tick() - LastStuckCheck > 3 then
+                    LastStuckCheck = tick()
+                    humanoid.Health = 0
                 end
             end
         end
@@ -261,8 +254,8 @@ end
 
 task.spawn(function()
     while true do
-        task.wait(2)
-        ForceClickPlayAndFixCamera()
+        task.wait(1)
+        AutoFixCameraAndPlay()
     end
 end)
 
