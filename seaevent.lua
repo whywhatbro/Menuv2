@@ -1,5 +1,5 @@
 -- =================================================================
--- KING LEGACY - V10 PRO (CÁCH KHÁC: BẮT TỌA ĐỘ THÔ & TỌA ĐỘ CỐ ĐỊNH)
+-- KING LEGACY - V10 PRO (ĐÃ SỬA LỖI TỰ ĐỘNG NHẤN NÚT PLAY)
 -- =================================================================
 
 local Players = game:GetService("Players")
@@ -90,7 +90,6 @@ UserInputService.InputBegan:Connect(function(input)
         local pos = input.Position
         local bPos = ToggleBtn.AbsolutePosition
         local bSize = ToggleBtn.AbsoluteSize
-        -- Kiểm tra xem điểm bấm có nằm trong khung nút MENU không
         if pos.X >= bPos.X and pos.X <= bPos.X + bSize.X and pos.Y >= bPos.Y and pos.Y <= bPos.Y + bSize.Y then
             MainFrame.Visible = not MainFrame.Visible
         end
@@ -100,7 +99,7 @@ end)
 local Title = Instance.new("TextLabel")
 Title.Size = UDim2.new(1, 0, 0, 30)
 Title.BackgroundColor3 = Color3.fromRGB(30, 30, 42)
-Title.Text = "AUTO EVENT KL V10 (RAW TOUCH FIX)"
+Title.Text = "AUTO EVENT KL V10 (FIX PLAY BUG)"
 Title.TextColor3 = Color3.fromRGB(0, 255, 180)
 Title.Font = Enum.Font.SourceSansBold
 Title.TextSize = 10
@@ -130,7 +129,7 @@ AutoPlayBtn.Parent = MainFrame
 
 local function UpdateAutoPlayButton()
     AutoPlayBtn.BackgroundColor3 = getgenv().KL_AutoPlayRunning and Color3.fromRGB(0, 180, 80) or Color3.fromRGB(180, 50, 50)
-    AutoPlayBtn.Text = getgenv().KL_AutoPlayRunning and "TỰ ĐỘNG PLAY (TÂM MÀN HÌNH): BẬT" or "TỰ ĐỘNG PLAY (TÂM MÀN HÌNH): TẮT"
+    AutoPlayBtn.Text = getgenv().KL_AutoPlayRunning and "TỰ ĐỘNG PLAY (THÔNG MINH): BẬT" or "TỰ ĐỘNG PLAY (THÔNG MINH): TẮT"
 end
 UpdateAutoPlayButton()
 
@@ -199,42 +198,80 @@ local function UpdateButtons()
 end
 UpdateButtons()
 
--- ================= HÀM KÍCH HOẠT PLAY BẰNG TỌA ĐỘ CỐ ĐỊNH =================
-local function ExecutePlayAtCenter()
+-- ================= 1. HÀM KÍCH HOẠT PLAY THÔNG MINH =================
+local function ExecuteSmartPlay()
     if not getgenv().KL_AutoPlayRunning then return end
+    
     pcall(function()
-        if VirtualInputManager and VirtualInputManager.SendTouchEvent then
+        local clicked = false
+        local PlayerGui = LocalPlayer:FindFirstChild("PlayerGui")
+        
+        -- Quét toàn bộ giao diện để tìm nút Play hoặc chọn phe
+        if PlayerGui then
+            for _, gui in pairs(PlayerGui:GetDescendants()) do
+                if (gui:IsA("TextButton") or gui:IsA("ImageButton")) and gui.Visible and gui.AbsolutePosition.X > 0 then
+                    local name = string.lower(gui.Name)
+                    local text = gui:IsA("TextButton") and string.lower(gui.Text) or ""
+                    
+                    if string.find(name, "play") or string.find(text, "play") 
+                    or string.find(name, "pirate") or string.find(text, "pirate")
+                    or string.find(name, "marine") or string.find(text, "marine") then
+                        
+                        -- Cách 1: Gọi thẳng vào sự kiện Click của game (Nhanh và chuẩn nhất)
+                        if getconnections then
+                            pcall(function()
+                                for _, conn in pairs(getconnections(gui.MouseButton1Click)) do
+                                    conn:Fire()
+                                    clicked = true
+                                end
+                            end)
+                        end
+                        
+                        -- Cách 2: Nếu getconnections bị lỗi, dùng giả lập click chuột (Thay vì Touch)
+                        if not clicked and VirtualInputManager then
+                            local absPos = gui.AbsolutePosition
+                            local absSize = gui.AbsoluteSize
+                            local targetX = absPos.X + (absSize.X / 2)
+                            local targetY = absPos.Y + (absSize.Y / 2) + 36 -- Bù thanh topbar
+                            
+                            VirtualInputManager:SendMouseButtonEvent(targetX, targetY, 0, true, game, 0)
+                            task.wait(0.05)
+                            VirtualInputManager:SendMouseButtonEvent(targetX, targetY, 0, false, game, 0)
+                            clicked = true
+                        end
+                    end
+                end
+            end
+        end
+        
+        -- Cách 3 (Dự phòng): Bấm thẳng tâm màn hình bằng Click Chuột nếu không quét ra nút
+        if not clicked and VirtualInputManager then
             local screenSize = Camera.ViewportSize
-            -- Click vào chính giữa màn hình (hoặc điều chỉnh lại tọa độ theo nút Play game)
             local targetX = screenSize.X / 2
             local targetY = screenSize.Y / 2 + 100 
-            
-            VirtualInputManager:SendTouchEvent(0, 0, 0, targetX, targetY, game)
+            VirtualInputManager:SendMouseButtonEvent(targetX, targetY, 0, true, game, 0)
             task.wait(0.05)
-            VirtualInputManager:SendTouchEvent(0, 1, 0, targetX, targetY, game)
+            VirtualInputManager:SendMouseButtonEvent(targetX, targetY, 0, false, game, 0)
         end
     end)
 end
 
--- Vòng lặp kiểm tra tự động bấm Play
+-- Vòng lặp kiểm tra trạng thái để tự bấm Play
 task.spawn(function()
     while true do
-        task.wait(1)
+        task.wait(1.5)
         pcall(function()
-            if tick() - ServerJoinTick < 12 then
-                ExecutePlayAtCenter()
+            local char = LocalPlayer.Character
+            local humanoid = char and char:FindFirstChildOfClass("Humanoid")
+            
+            -- Nếu nhân vật chưa load, bị khóa, hoặc đang ở menu mới thực hiện bấm
+            if not char or not humanoid or humanoid.Health <= 0 then
+                ExecuteSmartPlay()
             else
-                local char = LocalPlayer.Character
-                local humanoid = char and char:FindFirstChildOfClass("Humanoid")
-                local hrp = char and char:FindFirstChild("HumanoidRootPart")
-                
-                if char and humanoid and hrp and humanoid.Health > 0 then
-                    if Camera.CameraSubject ~= humanoid or Camera.CameraType ~= Enum.CameraType.Custom then
-                        Camera.CameraType = Enum.CameraType.Custom
-                        Camera.CameraSubject = humanoid
-                    end
-                else
-                    ExecutePlayAtCenter()
+                -- Nếu nhân vật đã spawn thành công thì trả lại Camera bình thường
+                if Camera.CameraSubject ~= humanoid or Camera.CameraType ~= Enum.CameraType.Custom then
+                    Camera.CameraType = Enum.CameraType.Custom
+                    Camera.CameraSubject = humanoid
                 end
             end
         end)
